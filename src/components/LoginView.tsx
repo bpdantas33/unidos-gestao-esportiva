@@ -544,8 +544,8 @@ export default function LoginView({ players, adminPassword, onLoginSuccess, onUp
               <div className="relative">
                 <input
                   type="password"
-                  pattern="[0-9a-zA-Z]*"
-                  inputMode="numeric"
+                  pattern={role === 'player' || adminLoginType === 'individual' ? "[0-9]*" : "[0-9a-zA-Z]*"}
+                  inputMode={role === 'player' || adminLoginType === 'individual' ? "numeric" : "text"}
                   placeholder={
                     role === 'player'
                       ? "Digite seu PIN"
