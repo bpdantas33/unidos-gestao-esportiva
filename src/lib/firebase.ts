@@ -16,8 +16,14 @@ export const db = getFirestore(app, "ai-studio-1aa8d619-5d39-49fe-a797-0b814fd6c
 export const auth = getAuth(app);
 
 export async function initAuth(): Promise<void> {
-  if (!auth.currentUser) {
-    await signInAnonymously(auth);
+  if (auth.currentUser) return;
+  try {
+    await Promise.race([
+      signInAnonymously(auth),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 8000))
+    ]);
+  } catch (e) {
+    console.warn('Anonymous auth failed (Safari privacy mode?):', e);
   }
 }
 
