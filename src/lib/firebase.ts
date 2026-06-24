@@ -1,5 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, getDocs, doc, writeBatch, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
+import { getAuth, signInAnonymously } from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: "AIzaSyB5bHcA6bPreEgDtqcb_sCWCUf21Abnc-o",
@@ -12,6 +13,13 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, "ai-studio-1aa8d619-5d39-49fe-a797-0b814fd6c276");
+export const auth = getAuth(app);
+
+export async function initAuth(): Promise<void> {
+  if (!auth.currentUser) {
+    await signInAnonymously(auth);
+  }
+}
 
 export async function getCollectionData<T>(collectionName: string): Promise<T[]> {
   try {

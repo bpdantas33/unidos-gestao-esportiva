@@ -16,7 +16,7 @@ import {
 } from './data/initialData';
 
 // Firebase
-import { getCollectionData, saveItem, deleteItem, saveCollectionData, getDocData, db } from './lib/firebase';
+import { getCollectionData, saveItem, deleteItem, saveCollectionData, getDocData, initAuth, db } from './lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { formatCurrency } from './lib/utils';
 
@@ -106,7 +106,10 @@ export default function App() {
     async function initFirebase() {
       try {
         setFirebaseStatus('loading');
-        
+
+        // Autenticação anônima para Firestore
+        await initAuth();
+
         // 0. Carregar/Criar Config (admin password)
         let config = await getDocData<{ id: string; adminPassword: string }>('config', 'app');
         if (!config) {
