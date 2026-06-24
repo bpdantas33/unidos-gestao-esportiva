@@ -1,0 +1,27 @@
+{
+  "name": "Unidos FC - Gestão Esportiva",
+  "short_name": "Unidos FC",
+  "description": "App de gestão do Unidos Futebol de Várzea. Gerencie elenco, partidas, finanças e estatísticas do time.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#1a237e",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["sports", "productivity"],
+  "lang": "pt-BR",
+  "scope": "/"
+}

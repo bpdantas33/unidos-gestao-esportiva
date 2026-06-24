@@ -1,0 +1,6 @@
+{
+  "name": "Unidos",
+  "description": "Painel completo de gestão do Unidos FC, englobando dashboard principal, calendário, elenco de atletas, estatísticas e fluxo financeiro.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
