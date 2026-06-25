@@ -1,4 +1,4 @@
-import { Search, Bell, Users, Menu } from 'lucide-react';
+import { Search, Bell, Settings, Users, Menu } from 'lucide-react';
 import { PROFILES } from '../data/initialData';
 import { SquadCategory, Player } from '../types';
 
@@ -6,6 +6,7 @@ interface HeaderProps {
   activeTab: string;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
+  onOpenSettings: () => void;
   onToggleNotifications: () => void;
   notificationCount: number;
   currentSquad: SquadCategory;
@@ -20,6 +21,7 @@ export default function Header({
   activeTab,
   searchQuery,
   setSearchQuery,
+  onOpenSettings,
   onToggleNotifications,
   notificationCount,
   currentSquad,
@@ -208,6 +210,14 @@ export default function Header({
           {notificationCount > 0 && (
             <span className="absolute top-2 right-2 w-2 h-2 bg-secondary rounded-full border border-white"></span>
           )}
+        </button>
+
+        {/* Settings */}
+        <button
+          onClick={onOpenSettings}
+          className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container transition-colors"
+        >
+          <Settings className="w-[20px] h-[20px] text-on-surface-variant" />
         </button>
 
         {/* Profile Card */}

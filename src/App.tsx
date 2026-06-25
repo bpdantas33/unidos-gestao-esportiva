@@ -16,8 +16,8 @@ import {
 } from './data/initialData';
 
 // Firebase
-import { getCollectionData, saveItem, deleteItem, saveCollectionData, initAuth, db, auth } from './lib/firebase';
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { getCollectionData, saveItem, deleteItem, saveCollectionData, getDocData, initAuth, db } from './lib/firebase';
+import { doc, setDoc } from 'firebase/firestore';
 import { formatCurrency, hashPin } from './lib/utils';
 
 // Sub-components
@@ -83,6 +83,8 @@ export default function App() {
   // Search filter query
   const [searchQuery, setSearchQuery] = useState('');
 
+  const [adminPassword, setAdminPassword] = useState<string>('');
+
   function generatePlayerPin(): string {
     return String(Math.floor(100000 + Math.random() * 900000));
   }
@@ -95,6 +97,19 @@ export default function App() {
 
         // Autenticação anônima para Firestore
         await initAuth();
+
+        // 0. Carregar/Criar Config (admin password hasheada)
+        let config = await getDocData<{ id: string; adminPassword: string }>('config', 'app');
+        if (config) {
+          const storedPwd = config.adminPassword;
+          if (storedPwd.length === 64 && /^[a-f0-9]+$/.test(storedPwd)) {
+            setAdminPassword(storedPwd);
+          } else {
+            const hashed = await hashPin(storedPwd);
+            await setDoc(doc(db, 'config', 'app'), { adminPassword: hashed });
+            setAdminPassword(hashed);
+          }
+        }
 
         // 1. Carregar Jogadores
         let fbPlayers = await getCollectionData<Player>('players');
@@ -193,17 +208,6 @@ export default function App() {
     localStorage.setItem('unidos_current_squad', currentSquad);
   }, [currentSquad]);
 
-  // Firebase Auth state listener (restores admin session on page refresh)
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user && !user.isAnonymous && !session) {
-        setSession({ role: 'admin' });
-        localStorage.setItem('unidos_session', JSON.stringify({ role: 'admin' }));
-      }
-    });
-    return unsubscribe;
-  }, []);
-
   useEffect(() => {
     localStorage.setItem('unidos_players', JSON.stringify(players));
   }, [players]);
@@ -230,7 +234,7 @@ export default function App() {
   }, [activeTab]);
 
   // 2. Modals Control States
-  const [activeModal, setActiveModal] = useState<null | 'training' | 'scheduleMatch' | 'addPlayer' | 'addTransaction' | 'playerDetails'>(null);
+  const [activeModal, setActiveModal] = useState<null | 'training' | 'scheduleMatch' | 'addPlayer' | 'addTransaction' | 'playerDetails' | 'adminSettings'>(null);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -261,12 +265,10 @@ export default function App() {
     showToast(`Conectado com sucesso como ${role === 'admin' ? 'Diretor' : 'Atleta'}!`, "success");
   };
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     setSession(null);
     localStorage.removeItem('unidos_session');
     showToast("Você saiu do aplicativo.", "info");
-    await signOut(auth);
-    initAuth();
   };
 
   // 4. Action Handlers
@@ -637,6 +639,23 @@ export default function App() {
     }
   };
 
+  const handleOpenSettings = () => {
+    setActiveModal('adminSettings');
+  };
+
+  const handleChangeAdminPassword = async (newPassword: string) => {
+    try {
+      const hashed = await hashPin(newPassword);
+      await setDoc(doc(db, 'config', 'app'), { adminPassword: hashed });
+      setAdminPassword(hashed);
+      showToast('Senha master alterada com sucesso!', 'success');
+      setActiveModal(null);
+    } catch (e) {
+      console.error('Error changing admin password:', e);
+      showToast('Erro ao alterar senha. Tente novamente.', 'error');
+    }
+  };
+
   // Filtered lists based on current selected squad filter
   const filteredPlayers = players.filter(p => p.squad === currentSquad);
   const filteredMatches = matches.filter(m => m.squad === currentSquad);
@@ -693,6 +712,7 @@ export default function App() {
         </AnimatePresence>
         <LoginView
           players={players}
+          adminPassword={adminPassword}
           onLoginSuccess={(sData) => handleLogin(sData.role, sData.playerId)}
           onUpdatePlayerPin={handleUpdatePlayerPin}
         />
@@ -746,6 +766,7 @@ export default function App() {
           activeTab={activeTab}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
+          onOpenSettings={handleOpenSettings}
           onToggleNotifications={() => showToast("Sem novas notificações de federação no momento.", "info")}
           notificationCount={2}
           currentSquad={currentSquad}
@@ -874,7 +895,100 @@ export default function App() {
           />
         )}
 
+        {activeModal === 'adminSettings' && (
+          <AdminSettingsModal
+            onChangePassword={handleChangeAdminPassword}
+            onClose={() => setActiveModal(null)}
+          />
+        )}
       </AnimatePresence>
     </div>
+  );
+}
+
+function AdminSettingsModal({ onChangePassword, onClose }: {
+  onChangePassword: (newPwd: string) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [newPwd, setNewPwd] = useState('');
+  const [confirmPwd, setConfirmPwd] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (newPwd.length < 6) { alert('A senha deve ter pelo menos 6 caracteres.'); return; }
+    if (newPwd !== confirmPwd) { alert('As senhas não coincidem.'); return; }
+    setSaving(true);
+    await onChangePassword(newPwd);
+    setSaving(false);
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+    >
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.9, opacity: 0 }}
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+      >
+        <div className="bg-primary p-6 text-white">
+          <h2 className="font-black text-lg">Configurações da Diretoria</h2>
+          <p className="text-sm text-primary-fixed-dim mt-1">Alterar senha master de acesso</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label className="text-xs font-black text-primary uppercase tracking-wider block mb-1">
+              Nova Senha
+            </label>
+            <input
+              type="text"
+              value={newPwd}
+              onChange={e => setNewPwd(e.target.value)}
+              placeholder="Mínimo 6 caracteres"
+              className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/40 rounded-xl text-sm font-bold text-primary outline-none focus:ring-2 focus:ring-secondary focus:border-transparent"
+              required
+              minLength={6}
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-black text-primary uppercase tracking-wider block mb-1">
+              Confirmar Nova Senha
+            </label>
+            <input
+              type="text"
+              value={confirmPwd}
+              onChange={e => setConfirmPwd(e.target.value)}
+              placeholder="Repita a nova senha"
+              className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/40 rounded-xl text-sm font-bold text-primary outline-none focus:ring-2 focus:ring-secondary focus:border-transparent"
+              required
+            />
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-3 bg-surface-container text-on-surface hover:bg-surface-container-high active:scale-[0.98] rounded-xl text-xs font-bold transition-all cursor-pointer"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex-1 py-3 bg-secondary text-white hover:brightness-110 active:scale-[0.98] rounded-xl text-xs font-extrabold shadow-md transition-all cursor-pointer disabled:opacity-50"
+            >
+              {saving ? 'Salvando...' : 'Alterar Senha'}
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </motion.div>
   );
 }

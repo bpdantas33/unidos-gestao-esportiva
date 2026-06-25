@@ -2,13 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Player, SquadCategory } from '../types';
 import { UNIDOS_LOGO } from '../data/initialData';
-import { auth } from '../lib/firebase';
-import { signInWithEmailAndPassword } from 'firebase/auth';
 import { hashPin } from '../lib/utils';
 import { Shield, User, Lock, LogIn, ChevronDown, Key } from 'lucide-react';
 
 interface LoginViewProps {
   players: Player[];
+  adminPassword: string;
   onLoginSuccess: (session: { role: 'admin' | 'player'; playerId?: string }) => void;
   onUpdatePlayerPin?: (id: string, newPin: string) => Promise<void>;
 }
@@ -53,7 +52,7 @@ function PlayerSelect({ players, value, onChange, disabled, placeholder }: {
   );
 }
 
-export default function LoginView({ players, onLoginSuccess, onUpdatePlayerPin }: LoginViewProps) {
+export default function LoginView({ players, adminPassword, onLoginSuccess, onUpdatePlayerPin }: LoginViewProps) {
   const [role, setRole] = useState<'admin' | 'player'>('player');
   const [selectedPlayerId, setSelectedPlayerId] = useState('');
   const [pin, setPin] = useState('');
@@ -104,10 +103,10 @@ export default function LoginView({ players, onLoginSuccess, onUpdatePlayerPin }
 
     if (role === 'admin') {
       if (adminLoginType === 'master') {
-        try {
-          await signInWithEmailAndPassword(auth, 'admin@unidosfc.com', pin);
+        const hashedInput = await hashPin(pin);
+        if (hashedInput === adminPassword) {
           onLoginSuccess({ role: 'admin' });
-        } catch {
+        } else {
           setError('Senha de administrador master incorreta.');
         }
       } else {
