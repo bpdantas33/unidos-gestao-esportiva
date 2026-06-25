@@ -1,7 +1,7 @@
 {
-  "name": "Unidos FC - Gestão Esportiva",
+  "name": "Unidos Suzano Futebol Master",
   "short_name": "Unidos FC",
-  "description": "App de gestão do Unidos Futebol de Várzea. Gerencie elenco, partidas, finanças e estatísticas do time.",
+  "description": "App de gestão do Unidos Suzano Futebol Master. Gerencie elenco, partidas, finanças e estatísticas do time.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f172a",

@@ -50,7 +50,7 @@ export default function Sidebar({
               />
             </div>
             <div>
-              <h2 className="font-bold text-[18px] text-white leading-tight tracking-tight">Unidos FC</h2>
+              <h2 className="font-bold text-[18px] text-white leading-tight tracking-tight">Unidos Suzano<br/>Futebol Master</h2>
               <p className="text-[10px] font-semibold text-primary-fixed-dim uppercase tracking-wider">Futebol de Várzea</p>
             </div>
           </div>

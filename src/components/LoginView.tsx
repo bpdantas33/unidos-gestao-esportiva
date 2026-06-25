@@ -245,8 +245,8 @@ export default function LoginView({ players, adminPassword, onLoginSuccess, onUp
               />
             </div>
             <div>
-              <h2 className="font-black text-2xl text-white tracking-tight leading-tight uppercase">Unidos FC</h2>
-              <p className="text-[10px] font-extrabold text-tertiary-fixed uppercase tracking-widest mt-1">Diretoria & Atletas • Fundado em 1984</p>
+              <h2 className="font-black text-2xl text-white tracking-tight leading-tight uppercase">Unidos Suzano Futebol Master</h2>
+              <p className="text-[10px] font-extrabold text-tertiary-fixed uppercase tracking-widest mt-1">Unidade acima de tudo e Churrasco acima de todos</p>
             </div>
           </div>
         </div>
@@ -599,7 +599,7 @@ export default function LoginView({ players, adminPassword, onLoginSuccess, onUp
         )}
 
         <div className="p-4 bg-surface-container border-t border-outline-variant/20 text-center text-[10px] text-on-surface-variant font-bold uppercase tracking-wider">
-          Unidos Futebol de Várzea • Fundado em 1984
+          Unidos Suzano Futebol Master • Unidade acima de tudo e Churrasco acima de todos
         </div>
       </motion.div>
     </div>

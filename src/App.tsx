@@ -683,7 +683,7 @@ export default function App() {
             </motion.div>
           </div>
           
-          <h1 className="text-3xl font-black text-white tracking-tight mb-2">Unidos FC</h1>
+          <h1 className="text-3xl font-black text-white tracking-tight mb-2">Unidos Suzano Futebol Master</h1>
           <div className="h-1 w-12 bg-emerald-500 rounded-full mb-4 mx-auto" />
           
           <p className="text-sm font-semibold text-slate-300">Conectando ao Firebase...</p>
