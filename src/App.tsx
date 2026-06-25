@@ -116,7 +116,7 @@ export default function App() {
           const newPwd = generateAdminPassword();
           await setDoc(doc(db, 'config', 'app'), { adminPassword: newPwd });
           config = { id: 'app', adminPassword: newPwd };
-          showToast(`App configurado! A senha master foi salva no Firebase.`, 'info');
+          showToast(`App configurado! Sua senha master é: ${newPwd}. Copie-a agora e altere em Configurações.`, 'info');
           console.log('Admin master password (guarde em local seguro):', newPwd);
         }
         setAdminPassword(config.adminPassword);
