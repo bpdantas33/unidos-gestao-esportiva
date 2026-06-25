@@ -794,7 +794,10 @@ export function PlayerDetailsModal({ player, onClose, onUpdatePlayer, session }:
                   onClick={() => {
                     if (confirm(`Deseja mesmo resetar o PIN de ${player.name}? Um novo PIN aleatório será gerado.`)) {
                       const newPin = String(Math.floor(100000 + Math.random() * 900000));
-                      onUpdatePlayer(player.id, { pin: newPin });
+                      crypto.subtle.digest('SHA-256', new TextEncoder().encode(newPin)).then(hash => {
+                        const hashedPin = Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
+                        onUpdatePlayer(player.id, { pin: hashedPin });
+                      });
                       alert(`PIN de ${player.name} resetado! Novo PIN: ${newPin}. Anote e entregue ao atleta.`);
                       onClose();
                     }
