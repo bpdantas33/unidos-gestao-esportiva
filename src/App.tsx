@@ -668,7 +668,11 @@ export default function App() {
   // Filtered lists based on current selected squad filter
   const filteredPlayers = players.filter(p => p.squad === currentSquad);
   const filteredMatches = matches.filter(m => m.squad === currentSquad);
-  const filteredStandings = standings.filter(s => s.squad === currentSquad);
+  const upcomingMatches = filteredMatches.filter(m => {
+    const [dia, mes, ano] = m.date.split('/');
+    return new Date(+ano, +mes - 1, +dia) >= new Date() || (!m.homeScore && !m.awayScore);
+  });
+
 
   if (firebaseLoading) {
     return (
@@ -810,7 +814,7 @@ export default function App() {
 
               {activeTab === 'calendario' && (
                 <CalendarView
-                  matches={filteredMatches}
+                  matches={upcomingMatches}
                   players={players}
                   onOpenScheduleMatch={() => setActiveModal('scheduleMatch')}
                   onImportMatches={handleImportMatches}
