@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
 import { Player, SquadCategory } from '../types';
 import { UNIDOS_LOGO } from '../data/initialData';
@@ -72,6 +72,22 @@ export default function LoginView({ players, adminPassword, onLoginSuccess, onUp
 
   // Individual URL access locking state
   const [lockedPlayerId, setLockedPlayerId] = useState<string | null>(null);
+
+  // 3-tap reveal for master access
+  const [showMasterAccess, setShowMasterAccess] = useState(false);
+  const logoTapRef = useRef(0);
+  const logoTapTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  const handleLogoTap = () => {
+    logoTapRef.current += 1;
+    if (logoTapTimer.current) clearTimeout(logoTapTimer.current);
+    if (logoTapRef.current >= 3) {
+      setShowMasterAccess(true);
+      logoTapRef.current = 0;
+    } else {
+      logoTapTimer.current = setTimeout(() => { logoTapRef.current = 0; }, 800);
+    }
+  };
 
   // Read "?atleta=ID" or "?atleta=NAME" or "?id=ID" from the URL
   useEffect(() => {
@@ -239,9 +255,10 @@ export default function LoginView({ players, adminPassword, onLoginSuccess, onUp
             <div className="w-24 h-24 rounded-full bg-white flex items-center justify-center overflow-hidden border-4 border-tertiary shadow-2xl relative">
               <img
                 alt="Unidos Crest"
-                className="w-full h-full object-cover scale-[1.35]"
+                className="w-full h-full object-cover scale-[1.35] cursor-pointer"
                 src={UNIDOS_LOGO}
                 referrerPolicy="no-referrer"
+                onClick={handleLogoTap}
               />
             </div>
             <div>
@@ -463,22 +480,24 @@ export default function LoginView({ players, adminPassword, onLoginSuccess, onUp
                   <label className="text-xs font-black text-primary uppercase tracking-wider block">
                     Forma de Acesso Admin
                   </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAdminLoginType('master');
-                        setSelectedAdminId('');
-                        setError('');
-                      }}
-                      className={`py-2 px-3 rounded-xl font-extrabold text-[11px] uppercase tracking-wider border transition-all ${
-                        adminLoginType === 'master'
-                          ? 'bg-primary text-white border-primary shadow-sm'
-                          : 'bg-surface-container-low text-on-surface-variant border-outline-variant/30 hover:bg-surface-container'
-                      }`}
-                    >
-                      Acesso Geral (Master)
-                    </button>
+                  <div className={`grid ${showMasterAccess ? 'grid-cols-2' : 'grid-cols-1'} gap-2`}>
+                    {showMasterAccess && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAdminLoginType('master');
+                          setSelectedAdminId('');
+                          setError('');
+                        }}
+                        className={`py-2 px-3 rounded-xl font-extrabold text-[11px] uppercase tracking-wider border transition-all ${
+                          adminLoginType === 'master'
+                            ? 'bg-primary text-white border-primary shadow-sm'
+                            : 'bg-surface-container-low text-on-surface-variant border-outline-variant/30 hover:bg-surface-container'
+                        }`}
+                      >
+                        Acesso Geral (Master)
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => {
@@ -494,6 +513,9 @@ export default function LoginView({ players, adminPassword, onLoginSuccess, onUp
                       PIN Individual
                     </button>
                   </div>
+                  {!showMasterAccess && (
+                    <p className="text-[10px] text-on-surface-variant/60 text-center italic">Toque 3x no escudo do time para opções avançadas</p>
+                  )}
                 </div>
 
                 {adminLoginType === 'individual' ? (

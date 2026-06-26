@@ -53,38 +53,19 @@ export default function Header({
       };
     }
 
-    switch (activeTab) {
-      case 'inicio':
-        return {
-          name: 'Seu Carlos',
-          role: 'Técnico e Fundador',
-          img: PROFILES.treinador
-        };
-      case 'calendario':
-        return {
-          name: 'Roberto \'Betão\'',
-          role: 'Diretor e Tesoureiro',
-          img: PROFILES.diretor
-        };
-      case 'estatisticas':
-        return {
-          name: 'Martins \'Presidente\'',
-          role: 'Presidente da Várzea',
-          img: PROFILES.manager
-        };
-      case 'financeiro':
-        return {
-          name: 'Roberto \'Betão\'',
-          role: 'Tesoureiro da Caixinha',
-          img: PROFILES.finance
-        };
-      default:
-        return {
-          name: 'Seu Carlos',
-          role: 'Técnico e Fundador',
-          img: PROFILES.treinador
-        };
+    if (session?.role === 'admin') {
+      return {
+        name: 'Administrador',
+        role: 'Diretoria Unidos',
+        img: PROFILES.diretor
+      };
     }
+
+    return {
+      name: 'Administrador',
+      role: 'Diretoria Unidos',
+      img: PROFILES.diretor
+    };
   };
 
   const profile = getProfile();
@@ -109,7 +90,7 @@ export default function Header({
 
     switch (activeTab) {
       case 'inicio':
-        return 'Painel do Seu Carlos';
+        return 'Painel da Diretoria';
       case 'calendario':
         return 'Calendário de Jogos';
       case 'elenco':
@@ -119,7 +100,7 @@ export default function Header({
       case 'financeiro':
         return 'Caixinha e Finanças';
       default:
-        return 'Painel do Seu Carlos';
+        return 'Painel da Diretoria';
     }
   };
 

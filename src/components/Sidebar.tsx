@@ -51,7 +51,7 @@ export default function Sidebar({
             </div>
             <div>
               <h2 className="font-bold text-[18px] text-white leading-tight tracking-tight">Unidos Suzano<br/>Futebol Master</h2>
-              <p className="text-[10px] font-semibold text-primary-fixed-dim uppercase tracking-wider">Futebol de Várzea</p>
+              <p className="text-[10px] font-semibold text-primary-fixed-dim uppercase tracking-wider">Unidade acima de tudo, Churrasco acima de todos</p>
             </div>
           </div>
           
@@ -154,26 +154,26 @@ export default function Sidebar({
             </button>
           );
         })}
+
+        {/* Sidebar Footer Buttons inside scrollable nav */}
+        <div className="mt-6 pt-6 border-t border-white/10 flex flex-col gap-1.5">
+          <button
+            onClick={onSupport}
+            className="w-full flex items-center gap-3 text-primary-fixed-dim px-4 py-2 hover:text-white transition-colors text-left font-medium"
+          >
+            <HelpCircle className="w-5 h-5" />
+            <span className="text-sm">Suporte</span>
+          </button>
+
+          <button
+            onClick={onLogout}
+            className="w-full flex items-center gap-3 text-primary-fixed-dim px-4 py-2 hover:text-white transition-colors text-left font-medium"
+          >
+            <LogOut className="w-5 h-5" />
+            <span className="text-sm">Sair</span>
+          </button>
+        </div>
       </nav>
-
-      {/* Sidebar Footer Buttons */}
-      <div className="mt-auto pt-6 flex flex-col gap-1.5">
-        <button
-          onClick={onSupport}
-          className="w-full flex items-center gap-3 text-primary-fixed-dim px-4 py-2 hover:text-white transition-colors text-left font-medium"
-        >
-          <HelpCircle className="w-5 h-5" />
-          <span className="text-sm">Suporte</span>
-        </button>
-
-        <button
-          onClick={onLogout}
-          className="w-full flex items-center gap-3 text-primary-fixed-dim px-4 py-2 hover:text-white transition-colors text-left font-medium"
-        >
-          <LogOut className="w-5 h-5" />
-          <span className="text-sm">Sair</span>
-        </button>
-      </div>
     </aside>
   );
 }

@@ -933,7 +933,6 @@ export default function App() {
               setSelectedPlayer(null);
             }}
             onUpdatePlayer={handleUpdatePlayerDetails}
-            adminPassword={adminPassword}
             session={session}
           />
         )}

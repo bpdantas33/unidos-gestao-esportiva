@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import { X, Check, Dumbbell, Calendar, Users, DollarSign, Star, AlertTriangle, RefreshCw, MessageSquare, Camera, Upload, Key } from 'lucide-react';
+import { X, Check, Dumbbell, Calendar, Users, DollarSign, Star, AlertTriangle, RefreshCw, MessageSquare, Camera, Upload, Key, HelpCircle } from 'lucide-react';
 import { Player, PlayerPosition, Match, Transaction, ExpenseCategory, SquadCategory } from '../types';
 import { UNIDOS_LOGO, TITAN_FC_LOGO, IBERIA_LOGO, MNT_LOGO, CTY_LOGO, EGL_LOGO } from '../data/initialData';
-import { hashPin } from '../lib/utils';
 
 interface ModalWrapperProps {
   title: string;
@@ -337,14 +336,36 @@ export function EditMatchModal({ match, onClose, onSubmit }: EditMatchModalProps
         </div>
 
         <div className="space-y-1.5">
-          <label className="font-bold text-on-surface">URL do Logo do Adversário</label>
-          <input
-            type="text"
-            value={opponentLogo}
-            onChange={e => setOpponentLogo(e.target.value)}
-            className="w-full px-4 py-2 bg-surface-container-low border border-outline-variant/20 rounded-lg outline-none focus:ring-2 focus:ring-primary font-medium"
-            placeholder="https://..."
-          />
+          <label className="font-bold text-on-surface">Logo do Adversário</label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={opponentLogo}
+              onChange={e => setOpponentLogo(e.target.value)}
+              className="flex-1 px-4 py-2 bg-surface-container-low border border-outline-variant/20 rounded-lg outline-none focus:ring-2 focus:ring-primary font-medium"
+              placeholder="https://..."
+            />
+            <label className="shrink-0 px-3 py-2 bg-surface-container-low border border-outline-variant/20 rounded-lg font-bold text-xs flex items-center gap-1 cursor-pointer hover:bg-surface-container transition-colors">
+              <Upload className="w-4 h-4" />
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={e => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                      if (typeof reader.result === 'string') {
+                        setOpponentLogo(reader.result);
+                      }
+                    };
+                    reader.readAsDataURL(file);
+                  }
+                }}
+              />
+            </label>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -779,11 +800,10 @@ interface PlayerDetailsModalProps {
   player: Player;
   onClose: () => void;
   onUpdatePlayer: (id: string, updates: Partial<Player>) => void;
-  adminPassword?: string;
   session: { role: 'admin' | 'player'; playerId?: string } | null;
 }
 
-export function PlayerDetailsModal({ player, onClose, onUpdatePlayer, adminPassword, session }: PlayerDetailsModalProps) {
+export function PlayerDetailsModal({ player, onClose, onUpdatePlayer, session }: PlayerDetailsModalProps) {
   const [editingName, setEditingName] = useState(player.name);
   const [editingPosition, setEditingPosition] = useState(player.position);
   const [editingNumber, setEditingNumber] = useState(player.number);
@@ -1066,22 +1086,13 @@ export function PlayerDetailsModal({ player, onClose, onUpdatePlayer, adminPassw
               {player.pin && (
                 <button
                   type="button"
-                  onClick={async () => {
-                    const masterPwd = prompt('Digite a senha master para confirmar o reset do PIN:');
-                    if (!masterPwd) return;
-                    if (!adminPassword) {
-                      alert('Erro: senha master não carregada.');
-                      return;
-                    }
-                    const hashedInput = await hashPin(masterPwd);
-                    if (hashedInput !== adminPassword) {
-                      alert('Senha master incorreta. Operação cancelada.');
-                      return;
-                    }
+                  onClick={() => {
                     if (confirm(`Deseja mesmo resetar o PIN de ${player.name}? Um novo PIN aleatório será gerado.`)) {
                       const newPin = String(Math.floor(100000 + Math.random() * 900000));
-                      const hashedPin = await hashPin(newPin);
-                      onUpdatePlayer(player.id, { pin: hashedPin });
+                      crypto.subtle.digest('SHA-256', new TextEncoder().encode(newPin)).then(hash => {
+                        const hashedPin = Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
+                        onUpdatePlayer(player.id, { pin: hashedPin });
+                      });
                       alert(`PIN de ${player.name} resetado! Novo PIN: ${newPin}. Anote e entregue ao atleta.`);
                       onClose();
                     }

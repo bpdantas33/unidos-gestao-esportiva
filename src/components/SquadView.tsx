@@ -154,7 +154,7 @@ export default function SquadView({
                 />
                 
                 {/* Number Badge */}
-                <div className="absolute top-4 left-4 bg-primary text-white w-10 h-10 rounded-lg flex items-center justify-center font-bold text-base shadow-md">
+                <div className="absolute top-4 right-4 bg-primary text-white w-10 h-10 rounded-lg flex items-center justify-center font-bold text-base shadow-md">
                   {player.number}
                 </div>
 
@@ -167,7 +167,7 @@ export default function SquadView({
                         onDeletePlayer(player.id);
                       }
                     }}
-                    className="absolute top-4 right-4 bg-white/80 hover:bg-error hover:text-white p-2 rounded-lg text-on-surface-variant transition-all shadow-md opacity-0 group-hover:opacity-100 z-20 cursor-pointer"
+                    className="absolute top-4 left-4 bg-white/80 hover:bg-error hover:text-white p-2 rounded-lg text-on-surface-variant transition-all shadow-md opacity-0 group-hover:opacity-100 z-20 cursor-pointer"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
