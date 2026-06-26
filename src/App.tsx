@@ -1,5 +1,5 @@
 import { useState, useEffect, type FormEvent } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Player, Match, Transaction, UnpaidMember, TeamStandings, TrainingLog, SquadCategory } from './types';
 import {
   initialPlayers,
@@ -186,6 +186,13 @@ export default function App() {
     }
 
     initFirebase();
+
+    const loadingTimeout = setTimeout(() => {
+      setFirebaseLoading(false);
+      setFirebaseStatus('error');
+    }, 20000);
+
+    return () => clearTimeout(loadingTimeout);
   }, []);
 
   // Save states to localStorage (as local backup)
@@ -196,6 +203,16 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('unidos_current_squad', currentSquad);
   }, [currentSquad]);
+
+  // Force squad for regular players — they see only their own squad
+  useEffect(() => {
+    if (session?.role === 'player' && session?.playerId) {
+      const player = players.find(p => p.id === session.playerId);
+      if (player && player.squad !== currentSquad) {
+        setCurrentSquad(player.squad);
+      }
+    }
+  }, [session, players, currentSquad]);
 
   useEffect(() => {
     localStorage.setItem('unidos_players', JSON.stringify(players));
@@ -295,6 +312,8 @@ export default function App() {
       return p;
     });
 
+    const prevPlayers = players;
+    const prevLogs = trainingLogs;
     setPlayers(updatedPlayers);
     
     const today = new Date();
@@ -312,13 +331,16 @@ export default function App() {
     
     setTrainingLogs(prev => [newLog, ...prev]);
     setActiveModal(null);
-    showToast(`Sessão de Treino ${data.type} aplicada para o time ${currentSquad}!`, 'success');
 
     try {
       await saveCollectionData('players', updatedPlayers);
       await saveItem('trainingLogs', newLog);
+      showToast(`Sessão de Treino ${data.type} aplicada para o time ${currentSquad}!`, 'success');
     } catch (e) {
       console.error("Firebase training save error:", e);
+      setPlayers(prevPlayers);
+      setTrainingLogs(prevLogs);
+      showToast("Erro ao salvar treino no Firebase.", "error");
     }
   };
 
@@ -344,14 +366,17 @@ export default function App() {
       confirmedPlayers: []
     };
 
+    const prevMatches = matches;
     setMatches([newMatch, ...matches]);
     setActiveModal(null);
-    showToast(`Confronto contra ${data.homeTeam.includes('Unidos') ? data.awayTeam : data.homeTeam} agendado para o time ${currentSquad}!`, 'success');
 
     try {
       await saveItem('matches', newMatch);
+      showToast(`Confronto contra ${data.homeTeam.includes('Unidos') ? data.awayTeam : data.homeTeam} agendado para o time ${currentSquad}!`, 'success');
     } catch (e) {
       console.error("Firebase match save error:", e);
+      setMatches(prevMatches);
+      showToast("Erro ao salvar partida no Firebase.", "error");
     }
   };
 
@@ -376,14 +401,17 @@ export default function App() {
       squad: currentSquad
     };
 
+    const prevPlayers = players;
     setPlayers([...players, newPlayer]);
     setActiveModal(null);
-    showToast(`Atleta ${playerData.name} adicionado ao elenco ${currentSquad}!`, 'success');
 
     try {
       await saveItem('players', newPlayer);
+      showToast(`Atleta ${playerData.name} adicionado ao elenco ${currentSquad}!`, 'success');
     } catch (e) {
       console.error("Firebase player save error:", e);
+      setPlayers(prevPlayers);
+      showToast("Erro ao salvar atleta no Firebase.", "error");
     }
   };
 
@@ -394,16 +422,19 @@ export default function App() {
       id: "t_" + Date.now(),
     };
 
+    const prevTransactions = transactions;
+    const prevUnpaid = unpaidMembers;
     setTransactions([newTx, ...transactions]);
 
     try {
       await saveItem('transactions', newTx);
     } catch (e) {
       console.error("Firebase transaction save error:", e);
+      setTransactions(prevTransactions);
+      showToast("Erro ao salvar transação no Firebase.", "error");
     }
 
     if (data.chargePlayers && data.amount > 0) {
-      // Find players in the current squad
       const squadPlayers = players.filter(p => p.squad === currentSquad);
       if (squadPlayers.length > 0) {
         const splitAmount = Math.ceil(data.amount / squadPlayers.length);
@@ -416,12 +447,14 @@ export default function App() {
           reason: `Compra de Uniforme (${currentSquad})`
         }));
         setUnpaidMembers(prev => [...newUnpaidMembers, ...prev]);
-        showToast(`Uniforme registrado! R$ ${splitAmount} lançado como débito para cada um dos ${squadPlayers.length} atletas do elenco ${currentSquad}.`, 'success');
-        
+
         try {
           await saveCollectionData('unpaidMembers', newUnpaidMembers);
+          showToast(`Uniforme registrado! R$ ${splitAmount} lançado como débito para cada um dos ${squadPlayers.length} atletas do elenco ${currentSquad}.`, 'success');
         } catch (e) {
           console.error("Firebase unpaid members save error:", e);
+          setUnpaidMembers(prevUnpaid);
+          showToast("Erro ao lançar débitos no Firebase.", "error");
         }
       } else {
         showToast(`Gasto registrado, porém nenhum atleta cadastrado no time ${currentSquad} para divisão de custos.`, 'info');
@@ -492,13 +525,16 @@ export default function App() {
       reason: `Mensalidade`
     }));
 
+    const prevUnpaid = unpaidMembers;
     setUnpaidMembers(prev => [...newUnpaidMembers, ...prev]);
-    showToast(`Mensalidade de R$70 gerada para ${squadPlayers.length} jogadores do ${currentSquad}!`, 'success');
 
     try {
       await saveCollectionData('unpaidMembers', newUnpaidMembers);
+      showToast(`Mensalidade de R$70 gerada para ${squadPlayers.length} jogadores do ${currentSquad}!`, 'success');
     } catch (e) {
       console.error("Firebase generate monthly fee error:", e);
+      setUnpaidMembers(prevUnpaid);
+      showToast("Erro ao gerar mensalidades no Firebase.", "error");
     }
   };
 
@@ -523,31 +559,35 @@ export default function App() {
     }));
     
     const pName = players.find(p => p.id === playerId)?.name || 'Atleta';
-    showToast(
-      status === 'CONFIRMADO' 
-        ? `${pName} confirmado para a partida!` 
-        : `${pName} registrou ausência para este jogo.`, 
-      status === 'CONFIRMADO' ? 'success' : 'info'
-    );
 
     try {
       if (updatedMatch) {
         await saveItem('matches', updatedMatch);
       }
+      showToast(
+        status === 'CONFIRMADO' 
+          ? `${pName} confirmado para a partida!` 
+          : `${pName} registrou ausência para este jogo.`, 
+        status === 'CONFIRMADO' ? 'success' : 'info'
+      );
     } catch (e) {
       console.error("Firebase attendance save error:", e);
+      showToast("Erro ao salvar presença no Firebase.", "error");
     }
   };
 
   // Spreadsheet copy-paste matching import
   const handleImportMatches = async (importedMatches: Match[]) => {
+    const prevMatches = matches;
     setMatches(prev => [...importedMatches, ...prev]);
-    showToast(`${importedMatches.length} confrontos importados com sucesso!`, 'success');
 
     try {
       await saveCollectionData('matches', importedMatches);
+      showToast(`${importedMatches.length} confrontos importados com sucesso!`, 'success');
     } catch (e) {
       console.error("Firebase import matches save error:", e);
+      setMatches(prevMatches);
+      showToast("Erro ao importar partidas no Firebase.", "error");
     }
   };
 
@@ -561,20 +601,21 @@ export default function App() {
       }
       return p;
     }));
-    showToast(`Ficha física do atleta atualizada!`, 'info');
-
     try {
       if (updatedPlayer) {
         await saveItem('players', updatedPlayer);
       }
+      showToast(`Ficha física do atleta atualizada!`, 'info');
     } catch (e) {
       console.error("Firebase update player details error:", e);
+      showToast("Erro ao atualizar ficha no Firebase.", "error");
     }
   };
 
   // Update Match
   const handleUpdateMatch = async (id: string, updates: Partial<Match>) => {
     let updatedMatch: Match | undefined;
+    const prevMatches = matches;
     setMatches(prev => prev.map(m => {
       if (m.id === id) {
         updatedMatch = { ...m, ...updates };
@@ -582,14 +623,16 @@ export default function App() {
       }
       return m;
     }));
-    showToast(`Partida atualizada!`, 'success');
+
+    if (!updatedMatch) return;
 
     try {
-      if (updatedMatch) {
-        await saveItem('matches', updatedMatch);
-      }
+      await saveItem('matches', updatedMatch);
+      showToast(`Partida atualizada!`, 'success');
     } catch (e) {
       console.error("Firebase update match error:", e);
+      setMatches(prevMatches);
+      showToast("Erro ao salvar alterações da partida no Firebase.", "error");
     }
   };
 
@@ -599,31 +642,34 @@ export default function App() {
     let updatedPlayer: Player | undefined;
     setPlayers(prev => prev.map(p => {
       if (p.id === id) {
-        updatedPlayer = { ...p, pin: hashedPin };
+        updatedPlayer = { ...p, pin: hashedPin, mustChangePin: false };
         return updatedPlayer;
       }
       return p;
     }));
-    showToast(`PIN de acesso atualizado com sucesso!`, 'success');
-
     try {
       if (updatedPlayer) {
         await saveItem('players', updatedPlayer);
       }
+      showToast(`PIN de acesso atualizado com sucesso!`, 'success');
     } catch (e) {
       console.error("Firebase update player PIN error:", e);
+      showToast("Erro ao salvar novo PIN no Firebase.", "error");
     }
   };
 
   // Delete Player
   const handleDeletePlayer = async (id: string) => {
+    const prevPlayers = players;
     setPlayers(prev => prev.filter(p => p.id !== id));
-    showToast(`Atleta removido do elenco.`, 'info');
 
     try {
       await deleteItem('players', id);
+      showToast(`Atleta removido do elenco.`, 'info');
     } catch (e) {
       console.error("Firebase delete player error:", e);
+      setPlayers(prevPlayers);
+      showToast("Erro ao remover atleta do Firebase.", "error");
     }
   };
 
@@ -651,8 +697,6 @@ export default function App() {
       return t;
     }));
 
-    showToast(`Gol anotado! Artilharia do Unidos atualizada.`, 'success');
-
     try {
       if (updatedPlayer) {
         await saveItem('players', updatedPlayer);
@@ -660,8 +704,46 @@ export default function App() {
       if (updatedStanding) {
         await saveItem('standings', updatedStanding);
       }
+      showToast(`Gol anotado! Artilharia do Unidos atualizada.`, 'success');
     } catch (e) {
       console.error("Firebase goal scorer save error:", e);
+      showToast("Erro ao salvar gol no Firebase.", "error");
+    }
+  };
+
+  // Cancel a transaction (soft delete)
+  const handleCancelTransaction = async (id: string) => {
+    const prevTx = transactions;
+    const tx = prevTx.find(t => t.id === id);
+    setTransactions(prev => prev.map(t =>
+      t.id === id ? { ...t, cancelled: true } : t
+    ));
+
+    try {
+      if (tx) await saveItem('transactions', { ...tx, cancelled: true });
+      showToast(`Lançamento cancelado.`, 'info');
+    } catch (e) {
+      console.error("Firebase cancel transaction error:", e);
+      setTransactions(prevTx);
+      showToast("Erro ao cancelar lançamento no Firebase.", "error");
+    }
+  };
+
+  // Remove an unpaid member record
+  const handleRemoveUnpaidMember = async (id: string) => {
+    const prevUp = unpaidMembers;
+    const member = prevUp.find(m => m.id === id);
+    setUnpaidMembers(prev => prev.map(m =>
+      m.id === id ? { ...m, cancelled: true } : m
+    ));
+
+    try {
+      if (member) await saveItem('unpaidMembers', { ...member, cancelled: true });
+      showToast(`Registro removido.`, 'info');
+    } catch (e) {
+      console.error("Firebase remove unpaid member error:", e);
+      setUnpaidMembers(prevUp);
+      showToast("Erro ao remover registro no Firebase.", "error");
     }
   };
 
@@ -884,6 +966,8 @@ export default function App() {
                   players={players}
                   onAddTransaction={handleAddTransaction}
                   onPayLateFee={handlePayLateFee}
+                  onCancelTransaction={handleCancelTransaction}
+                  onRemoveUnpaidMember={handleRemoveUnpaidMember}
                   onOpenNewTransaction={() => setActiveModal('addTransaction')}
                   onGenerateMonthlyFee={handleGenerateMonthlyFee}
                   session={session}

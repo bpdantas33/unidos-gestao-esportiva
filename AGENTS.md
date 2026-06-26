@@ -2,6 +2,7 @@
 
 > Projeto ativo: `C:\Users\Bruno\OneDrive\Área de Trabalho\unidos-fc-ia`
 > Live: https://unidos-fc.vercel.app (aliased do deploy mais recente)
+> Deploy: use `powershell -File deploy.ps1` (cuida do build + alias automático)
 > Firebase: project `gen-lang-client-0488712142`, database `ai-studio-1aa8d619-5d39-49fe-a797-0b814fd6c276`
 
 ## ⚠️ REGRA PRINCIPAL
@@ -40,8 +41,20 @@
 
 ### 6. Informações do time
 - Nome: "Unidos Suzano Futebol Master"
-- Lema/motto: "Unidade acima de tudo, Churrasco acima de todos"
+- Lema/motto: "Unidade acima de tudo e Churrasco acima de todos!"
 - Mensalidade: R$70 por jogador
+
+### 7. Segurança — Edição por role
+- `Modals.tsx`: Campos de telefone, condição, lesão e foto agora são **read-only** para não-admin/não-self. Só admin ou o próprio atleta pode editar ("Aplicar Boletim").
+- `App.tsx`: Atleta logado (role `player`) tem `currentSquad` forçado para o squad dele. Não consegue trocar.
+- `Header.tsx`: Toggle Master/Veterano só aparece para `role === 'admin'`.
+
+### 8. Lema corrigido
+- Padronizado para "Unidade acima de tudo e Churrasco acima de todos!" — com "e", sem vírgula, com "!".
+- Rodapé do login: removido CSS `uppercase` (estava em caixa alta indevida).
+
+### 9. Deploy script
+- `deploy.ps1`: build + deploy + alias automático para `unidos-fc.vercel.app`. Evita o alias incorreto `unidos-gestao-esportiva`.
 
 ## Próximos passos (pendentes / sugeridos)
 - (Aguardar o usuário listar os próximos ajustes)

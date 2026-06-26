@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 import { Player, SquadCategory } from '../types';
 import { UNIDOS_LOGO } from '../data/initialData';
 import { hashPin } from '../lib/utils';
@@ -61,6 +61,7 @@ export default function LoginView({ players, adminPassword, onLoginSuccess, onUp
 
   // Password / PIN change states
   const [isChangingPin, setIsChangingPin] = useState(false);
+  const [isFirstAccess, setIsFirstAccess] = useState(false);
   const [changePlayerId, setChangePlayerId] = useState('');
   const [currentPin, setCurrentPin] = useState('');
   const [newPin, setNewPin] = useState('');
@@ -168,11 +169,17 @@ export default function LoginView({ players, adminPassword, onLoginSuccess, onUp
 
       const hashedInput = await hashPin(pin);
       if (hashedInput === player.pin) {
-        if (player.isBoardMember) {
-          onLoginSuccess({ role: 'admin', playerId: player.id });
-        } else {
-          onLoginSuccess({ role: 'player', playerId: player.id });
+        if (player.mustChangePin) {
+          setIsFirstAccess(true);
+          setIsChangingPin(true);
+          setChangePlayerId(player.id);
+          setCurrentPin(pin);
+          setNewPin('');
+          setConfirmNewPin('');
+          setSuccessMessage('Este é seu primeiro acesso. Crie um PIN pessoal para continuar.');
+          return;
         }
+        onLoginSuccess({ role: 'player', playerId: player.id });
       } else {
         setError('Código PIN incorreto.');
       }
@@ -219,13 +226,18 @@ export default function LoginView({ players, adminPassword, onLoginSuccess, onUp
     try {
       if (onUpdatePlayerPin) {
         await onUpdatePlayerPin(changePlayerId, newPin);
-        setSuccessMessage(`PIN de ${player.name} atualizado com sucesso! Agora você já pode entrar com seu novo PIN.`);
-        setIsChangingPin(false);
-        setChangePlayerId('');
-        setCurrentPin('');
-        setNewPin('');
-        setConfirmNewPin('');
-        setSelectedPlayerId(player.id);
+        if (isFirstAccess) {
+          onLoginSuccess({ role: 'player', playerId: changePlayerId });
+        } else {
+          setSuccessMessage(`PIN de ${player.name} atualizado com sucesso! Agora você já pode entrar com seu novo PIN.`);
+          setIsChangingPin(false);
+          setIsFirstAccess(false);
+          setChangePlayerId('');
+          setCurrentPin('');
+          setNewPin('');
+          setConfirmNewPin('');
+          setSelectedPlayerId(player.id);
+        }
       } else {
         setError('Erro interno do sistema de PIN.');
       }
@@ -263,7 +275,7 @@ export default function LoginView({ players, adminPassword, onLoginSuccess, onUp
             </div>
             <div>
               <h2 className="font-black text-2xl text-white tracking-tight leading-tight uppercase">Unidos Suzano Futebol Master</h2>
-              <p className="text-[10px] font-extrabold text-tertiary-fixed uppercase tracking-widest mt-1">Unidade acima de tudo e Churrasco acima de todos</p>
+              <p className="text-xs font-medium italic text-tertiary-fixed/90 tracking-normal mt-1">Unidade acima de tudo e Churrasco acima de todos!</p>
             </div>
           </div>
         </div>
@@ -424,6 +436,7 @@ export default function LoginView({ players, adminPassword, onLoginSuccess, onUp
                 type="button"
                 onClick={() => {
                   setIsChangingPin(false);
+                  setIsFirstAccess(false);
                   setError('');
                   setSuccessMessage('');
                 }}
@@ -624,8 +637,8 @@ export default function LoginView({ players, adminPassword, onLoginSuccess, onUp
           </form>
         )}
 
-        <div className="p-4 bg-surface-container border-t border-outline-variant/20 text-center text-[10px] text-on-surface-variant font-bold uppercase tracking-wider">
-          Unidos Suzano Futebol Master • Unidade acima de tudo e Churrasco acima de todos
+        <div className="p-4 bg-surface-container border-t border-outline-variant/20 text-center text-[10px] text-on-surface-variant font-bold tracking-wider">
+          Unidos Suzano Futebol Master • Unidade acima de tudo e Churrasco acima de todos!
         </div>
       </motion.div>
     </div>

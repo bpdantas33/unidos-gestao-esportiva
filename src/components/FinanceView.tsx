@@ -19,7 +19,8 @@ import {
   TrendingUp,
   Shield,
   Droplet,
-  Megaphone
+  Megaphone,
+  Trash2
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -40,6 +41,8 @@ interface FinanceViewProps {
   players: Player[];
   onAddTransaction: (transaction: Omit<Transaction, 'id' | 'date'> & { chargePlayers?: boolean }) => void;
   onPayLateFee: (memberId: string, amount: number) => void;
+  onCancelTransaction: (id: string) => void;
+  onRemoveUnpaidMember: (id: string) => void;
   onOpenNewTransaction: () => void;
   onGenerateMonthlyFee?: () => void;
   session: { role: 'admin' | 'player'; playerId?: string } | null;
@@ -52,6 +55,8 @@ export default function FinanceView({
   players,
   onAddTransaction,
   onPayLateFee,
+  onCancelTransaction,
+  onRemoveUnpaidMember,
   onOpenNewTransaction,
   onGenerateMonthlyFee,
   session,
@@ -63,15 +68,16 @@ export default function FinanceView({
 
   // Dynamic calculations based on active players and transactions
   const calculateFinance = () => {
-    const monthlyRevenues = transactions
+    const active = transactions.filter(t => !t.cancelled);
+    const monthlyRevenues = active
       .filter((t) => t.category === 'RECEITA')
       .reduce((acc, curr) => acc + curr.amount, 0);
 
-    const monthlyExpenses = transactions
+    const monthlyExpenses = active
       .filter((t) => t.category === 'DESPESA')
       .reduce((acc, curr) => acc + curr.amount, 0);
 
-    const finalBalance = transactions.reduce((acc, curr) => acc + (curr.category === 'RECEITA' ? curr.amount : -curr.amount), 0);
+    const finalBalance = active.reduce((acc, curr) => acc + (curr.category === 'RECEITA' ? curr.amount : -curr.amount), 0);
 
     return {
       balance: finalBalance,
@@ -98,7 +104,7 @@ export default function FinanceView({
 
     // Sum up custom transactions
     transactions
-      .filter((t) => t.category === 'DESPESA' && t.expenseType)
+      .filter((t) => !t.cancelled && t.category === 'DESPESA' && t.expenseType)
       .forEach((t) => {
         const type = t.expenseType as ExpenseCategory;
         if (categories[type] !== undefined) {
@@ -121,7 +127,7 @@ export default function FinanceView({
 
     const dataMap: Record<string, { name: string; receitas: number; despesas: number; saldo: number }> = {};
 
-    transactions.forEach((t) => {
+    transactions.filter(t => !t.cancelled).forEach((t) => {
       const parts = t.date.split('/');
       if (parts.length >= 2) {
         const month = parts[1];
@@ -157,10 +163,37 @@ export default function FinanceView({
 
   const handleExport = () => {
     setExporting(true);
-    setTimeout(() => {
-      setExporting(false);
-      alert('Relatório Financeiro Exportado com Sucesso! (Formato: XLSX)');
-    }, 1500);
+
+    const pendingUnpaid = unpaidMembers.filter(m => !m.isPaid && !m.cancelled);
+
+    let csv = "Tipo,Descrição,Data,Valor\n";
+    const visible = transactions.filter(tx => !tx.cancelled);
+    visible.forEach(tx => {
+      const linha = [
+        tx.category === 'RECEITA' ? 'Receita' : 'Despesa',
+        `"${tx.description.replace(/"/g, '""')}"`,
+        tx.date,
+        tx.category === 'RECEITA' ? tx.amount : -tx.amount
+      ].join(',');
+      csv += linha + '\n';
+    });
+
+    csv += "\n,INADIMPLÊNCIAS\n";
+    csv += "Atleta,Motivo,Valor\n";
+    pendingUnpaid.forEach(m => {
+      csv += `"${m.name.replace(/"/g, '""')}","${(m.reason || 'Mensalidade').replace(/"/g, '""')}",${m.amount}\n`;
+    });
+
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `financeiro_unidos_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    setExporting(false);
+    showToast?.('Relatório exportado como CSV!', 'success');
   };
 
   const handleNotifyMember = (member: UnpaidMember) => {
@@ -208,7 +241,7 @@ export default function FinanceView({
   };
 
   const handleNotifyAll = () => {
-    const pendingList = unpaidMembers.filter(m => !m.isPaid);
+    const pendingList = unpaidMembers.filter(m => !m.isPaid && !m.cancelled);
     if (pendingList.length === 0) return;
     
     if (showToast) {
@@ -497,7 +530,7 @@ export default function FinanceView({
               <p className="text-xs text-on-surface-variant font-medium mt-0.5">Membros com pendências pendentes</p>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
-              {unpaidMembers.some(m => !m.isPaid) && (
+              {unpaidMembers.some(m => !m.isPaid && !m.cancelled) && (
                 <button
                   onClick={handleNotifyAll}
                   className="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1 active:scale-95 shadow-xs cursor-pointer"
@@ -521,13 +554,17 @@ export default function FinanceView({
                 <p className="text-[10px] text-on-surface-variant mt-1">Nenhum atleta em débito</p>
               </div>
             ) : (
-              unpaidMembers.map((member) => (
+              unpaidMembers.map((member) => {
+                const isCancelled = member.cancelled;
+                return (
                 <div
                   key={member.id}
                   className={`p-4 rounded-xl border transition-all flex flex-col justify-between gap-4 ${
-                    member.isPaid
-                      ? 'bg-primary/5 border-primary/25 opacity-70'
-                      : 'bg-surface-container-low border-outline-variant/10 hover:border-outline-variant/30'
+                    isCancelled
+                      ? 'bg-surface-container-low border-outline-variant/10 opacity-40'
+                      : member.isPaid
+                        ? 'bg-primary/5 border-primary/25 opacity-70'
+                        : 'bg-surface-container-low border-outline-variant/10 hover:border-outline-variant/30'
                   }`}
                 >
                   <div className="flex items-center gap-3">
@@ -540,20 +577,28 @@ export default function FinanceView({
                       />
                     </div>
                     <div>
-                      <p className="font-bold text-sm text-on-surface leading-tight">{member.name}</p>
-                      <p className="text-[9px] text-on-surface-variant font-extrabold uppercase mt-1">
-                        PENDENTE: <span className="text-secondary font-black">{member.reason || 'Mensalidade'}</span>
-                      </p>
+                      <p className={`font-bold text-sm leading-tight ${isCancelled ? 'line-through text-on-surface-variant' : 'text-on-surface'}`}>{member.name}</p>
+                      {isCancelled ? (
+                        <p className="text-[9px] text-error/60 font-extrabold uppercase mt-1">Removido</p>
+                      ) : (
+                        <p className="text-[9px] text-on-surface-variant font-extrabold uppercase mt-1">
+                          {member.isPaid ? 'PAGO' : 'PENDENTE'}: <span className={`font-black ${member.isPaid ? 'text-primary' : 'text-secondary'}`}>{member.reason || 'Mensalidade'}</span>
+                        </p>
+                      )}
                     </div>
                   </div>
 
                   <div className="flex items-center justify-between pt-3 border-t border-outline-variant/10 mt-1">
                     <div>
                       <p className="text-[10px] text-on-surface-variant font-medium uppercase">Valor Devido</p>
-                      <p className="font-extrabold text-sm text-primary">{formatCurrency(member.amount)}</p>
+                      <p className={`font-extrabold text-sm ${isCancelled ? 'text-on-surface-variant/60 line-through' : 'text-primary'}`}>{formatCurrency(member.amount)}</p>
                     </div>
 
-                    {session?.role === 'player' ? (
+                    {isCancelled ? (
+                      <span className="px-3 py-1.5 rounded-lg text-xs font-bold bg-surface-container text-on-surface-variant border border-outline-variant/20">
+                        Removido
+                      </span>
+                    ) : session?.role === 'player' ? (
                       <div className="flex items-center gap-1.5">
                         {!member.isPaid && (
                           <button
@@ -575,13 +620,26 @@ export default function FinanceView({
                     ) : (
                       <div className="flex items-center gap-1.5">
                         {!member.isPaid && (
-                          <button
-                            onClick={() => handleNotifyMember(member)}
-                            className="p-1.5 text-amber-500 hover:text-amber-600 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-all active:scale-95 cursor-pointer flex items-center justify-center"
-                            title="Notificar Atleta via Lembrete"
-                          >
-                            <Bell className="w-3.5 h-3.5" />
-                          </button>
+                          <>
+                            <button
+                              onClick={() => handleNotifyMember(member)}
+                              className="p-1.5 text-amber-500 hover:text-amber-600 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-all active:scale-95 cursor-pointer flex items-center justify-center"
+                              title="Notificar Atleta via Lembrete"
+                            >
+                              <Bell className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (confirm(`Remover cobrança de ${member.name}?`)) {
+                                  onRemoveUnpaidMember(member.id);
+                                }
+                              }}
+                              className="p-1.5 text-error/60 hover:text-error bg-transparent hover:bg-error/5 rounded-lg transition-all active:scale-95 cursor-pointer"
+                              title="Remover cobrança"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </>
                         )}
                         <button
                           onClick={() => !member.isPaid && onPayLateFee(member.id, member.amount)}
@@ -605,7 +663,7 @@ export default function FinanceView({
                     )}
                   </div>
                 </div>
-              ))
+              )})
             )}
           </div>
         </section>
@@ -692,28 +750,35 @@ export default function FinanceView({
 
           {/* Transactions list */}
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+              <table className="w-full text-left text-xs">
               <thead className="bg-surface-container-low text-on-surface-variant font-bold border-b border-outline-variant/20">
                 <tr>
                   <th className="p-3">Descrição / Item Diretoria</th>
                   <th className="p-3">Fluxo</th>
                   <th className="p-3">Data</th>
                   <th className="p-3 text-right">Valor</th>
+                  {session?.role !== 'player' && <th className="p-3 text-center w-12">Ações</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant/10">
                 {filteredTransactions.map((tx) => {
                   const isRevenue = tx.category === 'RECEITA';
+                  const isCancelled = tx.cancelled;
                   return (
-                    <tr key={tx.id} className="hover:bg-surface-container-low transition-colors duration-150">
+                    <tr key={tx.id} className={`transition-colors duration-150 ${isCancelled ? 'opacity-40' : 'hover:bg-surface-container-low'}`}>
                       <td className="p-3">
-                        <p className="font-bold text-sm text-on-surface">{tx.description}</p>
-                        {tx.expenseType && (
+                        <p className={`font-bold text-sm ${isCancelled ? 'line-through text-on-surface-variant' : 'text-on-surface'}`}>{tx.description}</p>
+                        {isCancelled && (
+                          <span className="inline-flex items-center gap-0.5 text-[9px] bg-error/10 text-error border border-error/20 px-1.5 py-0.2 rounded-md font-bold mt-1 uppercase">
+                            Cancelado
+                          </span>
+                        )}
+                        {!isCancelled && tx.expenseType && (
                           <span className="inline-flex items-center gap-0.5 text-[9px] bg-primary/5 text-primary border border-primary/10 px-1.5 py-0.2 rounded-md font-bold mt-1 uppercase">
                             Custo: {tx.expenseType}
                           </span>
                         )}
-                        {tx.chargedToPlayers && (
+                        {!isCancelled && tx.chargedToPlayers && (
                           <span className="inline-flex items-center gap-0.5 text-[9px] bg-amber-500/10 text-amber-600 border border-amber-500/20 px-1.5 py-0.2 rounded-md font-extrabold mt-1 ml-1.5 uppercase">
                             Repassado ao Elenco
                           </span>
@@ -721,21 +786,43 @@ export default function FinanceView({
                       </td>
                       <td className="p-3">
                         <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                          isRevenue
-                            ? 'bg-primary/10 text-primary'
-                            : 'bg-secondary/10 text-secondary'
+                          isCancelled
+                            ? 'bg-surface-container text-on-surface-variant'
+                            : isRevenue
+                              ? 'bg-primary/10 text-primary'
+                              : 'bg-secondary/10 text-secondary'
                         }`}>
-                          {isRevenue ? 'Receita' : 'Despesa'}
+                          {isCancelled ? 'Cancelado' : isRevenue ? 'Receita' : 'Despesa'}
                         </span>
                       </td>
                       <td className="p-3">
-                        <p className="text-on-surface-variant font-semibold">{tx.date}</p>
+                        <p className={`font-semibold ${isCancelled ? 'text-on-surface-variant/60 line-through' : 'text-on-surface-variant'}`}>{tx.date}</p>
                       </td>
                       <td className="p-3 text-right">
-                        <p className={`font-black text-sm ${isRevenue ? 'text-primary' : 'text-secondary'}`}>
+                        <p className={`font-black text-sm ${isCancelled ? 'text-on-surface-variant/60 line-through' : isRevenue ? 'text-primary' : 'text-secondary'}`}>
                           {isRevenue ? '+' : '-'} {formatCurrency(tx.amount)}
                         </p>
                       </td>
+                      {session?.role !== 'player' && !isCancelled && (
+                        <td className="p-3 text-center">
+                          <button
+                            onClick={() => {
+                              if (confirm(`Cancelar lançamento "${tx.description}"?`)) {
+                                onCancelTransaction(tx.id);
+                              }
+                            }}
+                            className="p-1.5 text-error/60 hover:text-error bg-transparent hover:bg-error/5 rounded-lg transition-all active:scale-95 cursor-pointer"
+                            title="Cancelar lançamento"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      )}
+                      {session?.role !== 'player' && isCancelled && (
+                        <td className="p-3 text-center">
+                          <span className="text-[9px] font-bold text-on-surface-variant/50 uppercase">Cancelado</span>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}

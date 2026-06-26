@@ -532,6 +532,32 @@ export default function CalendarView({
                         Nenhum jogador confirmou presença ainda para este confronto. Seja o primeiro!
                       </p>
                     )}
+
+                    {/* Full squad status */}
+                    <div className="pt-2.5 border-t border-outline-variant/20 space-y-1.5">
+                      <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">
+                        Status do Elenco ({squadPlayers.length})
+                      </p>
+                      <div className="flex flex-wrap gap-x-2.5 gap-y-1">
+                        {squadPlayers
+                          .sort((a, b) => {
+                            const aOk = match.confirmedPlayers?.includes(a.id) ?? false;
+                            const bOk = match.confirmedPlayers?.includes(b.id) ?? false;
+                            return aOk !== bOk ? (aOk ? -1 : 1) : (a.number || 99) - (b.number || 99);
+                          })
+                          .map(p => {
+                            const confirmed = match.confirmedPlayers?.includes(p.id) ?? false;
+                            return (
+                              <span key={p.id} className="text-[10px] font-bold flex items-center gap-1">
+                                <span className={`w-1.5 h-1.5 rounded-full ${confirmed ? 'bg-green-500' : 'bg-outline-variant'}`} />
+                                <span className={confirmed ? 'text-on-surface' : 'text-on-surface-variant/60'}>
+                                  #{p.number} {p.name.split(' ')[0]}
+                                </span>
+                              </span>
+                            );
+                          })}
+                      </div>
+                    </div>
                   </div>
                 </div>
               );

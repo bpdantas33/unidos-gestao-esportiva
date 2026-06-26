@@ -21,6 +21,7 @@ export interface Player {
   birthDate?: string; // Format: "DD/MM", e.g. "24/06"
   phone?: string; // WhatsApp number (e.g., "11999999999")
   pin?: string; // Custom login PIN
+  mustChangePin?: boolean; // Force PIN change on next login
   isBoardMember?: boolean; // If true, this member belongs to the diretoria (admin access)
 }
 
@@ -38,6 +39,7 @@ export interface Match {
   status: 'VITÓRIA' | 'EMPATE' | 'DERROTA' | 'CANCELADO' | 'CONFIRMADO';
   time?: string;
   stadium: string;
+  address?: string;
   scorers?: string;
   observation?: string;
   squad: SquadCategory; // For which squad this match is
@@ -59,10 +61,11 @@ export interface Transaction {
   id: string;
   description: string;
   category: 'RECEITA' | 'DESPESA';
-  expenseType?: ExpenseCategory; // Specific cost type for diretoria
-  chargedToPlayers?: boolean; // Whether uniform cost is split/charged to players
-  date: string; // "14/06/2024"
+  expenseType?: ExpenseCategory;
+  chargedToPlayers?: boolean;
+  date: string;
   amount: number;
+  cancelled?: boolean;
 }
 
 export interface UnpaidMember {
@@ -72,7 +75,8 @@ export interface UnpaidMember {
   amount: number;
   image: string;
   isPaid?: boolean;
-  reason?: string; // e.g. "Mensalidade", "Uniforme"
+  reason?: string;
+  cancelled?: boolean;
 }
 
 export interface TeamStandings {

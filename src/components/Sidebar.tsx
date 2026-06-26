@@ -1,4 +1,4 @@
-import { LayoutDashboard, Calendar, Users, BarChart3, DollarSign, HelpCircle, LogOut, X, Shield, User } from 'lucide-react';
+import { LayoutDashboard, Calendar, Users, BarChart3, DollarSign, HelpCircle, LogOut, X, Shield, User, RefreshCw, RotateCcw } from 'lucide-react';
 import { UNIDOS_LOGO } from '../data/initialData';
 import { Player } from '../types';
 
@@ -51,7 +51,7 @@ export default function Sidebar({
             </div>
             <div>
               <h2 className="font-bold text-[18px] text-white leading-tight tracking-tight">Unidos Suzano<br/>Futebol Master</h2>
-              <p className="text-[10px] font-semibold text-primary-fixed-dim uppercase tracking-wider">Unidade acima de tudo, Churrasco acima de todos</p>
+              <p className="text-[11px] font-medium italic text-primary-fixed-dim/80 tracking-normal">Unidade acima de tudo e Churrasco acima de todos!</p>
             </div>
           </div>
           
@@ -163,6 +163,32 @@ export default function Sidebar({
           >
             <HelpCircle className="w-5 h-5" />
             <span className="text-sm">Suporte</span>
+          </button>
+
+          <button
+            onClick={() => window.location.reload()}
+            className="w-full flex items-center gap-3 text-primary-fixed-dim px-4 py-2 hover:text-white transition-colors text-left font-medium"
+          >
+            <RefreshCw className="w-5 h-5" />
+            <span className="text-sm">Recarregar App</span>
+          </button>
+
+          <button
+            onClick={async () => {
+              if ('serviceWorker' in navigator) {
+                const regs = await navigator.serviceWorker.getRegistrations();
+                for (const reg of regs) await reg.unregister();
+              }
+              if ('caches' in window) {
+                const keys = await caches.keys();
+                await Promise.all(keys.map(k => caches.delete(k)));
+              }
+              window.location.reload();
+            }}
+            className="w-full flex items-center gap-3 text-primary-fixed-dim px-4 py-2 hover:text-white transition-colors text-left font-medium"
+          >
+            <RotateCcw className="w-5 h-5" />
+            <span className="text-sm">Limpar Cache & SW</span>
           </button>
 
           <button

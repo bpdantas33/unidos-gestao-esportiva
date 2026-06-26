@@ -142,30 +142,32 @@ export default function Header({
           )}
         </div>
         
-        {/* Squad Switcher Toggle */}
-        <div className="flex bg-surface-container p-1 rounded-full border border-outline-variant/35 items-center gap-1">
-          <Users className="w-3.5 h-3.5 text-on-surface-variant/70 ml-2" />
-          <button
-            onClick={() => setCurrentSquad('Veterano/Esporte')}
-            className={`px-3 py-1 rounded-full text-xs font-extrabold transition-all duration-200 ${
-              currentSquad === 'Veterano/Esporte'
-                ? 'bg-primary text-white shadow-sm'
-                : 'text-on-surface-variant hover:text-on-surface hover:bg-white/50'
-            }`}
-          >
-            Veterano / Esporte
-          </button>
-          <button
-            onClick={() => setCurrentSquad('Master')}
-            className={`px-3 py-1 rounded-full text-xs font-extrabold transition-all duration-200 ${
-              currentSquad === 'Master'
-                ? 'bg-primary text-white shadow-sm'
-                : 'text-on-surface-variant hover:text-on-surface hover:bg-white/50'
-            }`}
-          >
-            Master
-          </button>
-        </div>
+        {/* Squad Switcher Toggle — only for admin/directors */}
+        {session?.role === 'admin' && (
+          <div className="flex bg-surface-container p-1 rounded-full border border-outline-variant/35 items-center gap-1">
+            <Users className="w-3.5 h-3.5 text-on-surface-variant/70 ml-2" />
+            <button
+              onClick={() => setCurrentSquad('Veterano/Esporte')}
+              className={`px-3 py-1 rounded-full text-xs font-extrabold transition-all duration-200 ${
+                currentSquad === 'Veterano/Esporte'
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'text-on-surface-variant hover:text-on-surface hover:bg-white/50'
+              }`}
+            >
+              Veterano / Esporte
+            </button>
+            <button
+              onClick={() => setCurrentSquad('Master')}
+              className={`px-3 py-1 rounded-full text-xs font-extrabold transition-all duration-200 ${
+                currentSquad === 'Master'
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'text-on-surface-variant hover:text-on-surface hover:bg-white/50'
+              }`}
+            >
+              Master
+            </button>
+          </div>
+        )}
 
         {/* Search Bar */}
         <div className="relative hidden md:block">

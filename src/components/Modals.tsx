@@ -132,6 +132,7 @@ export function ScheduleMatchModal({ onClose, onSubmit }: ScheduleMatchModalProp
   const [date, setDate] = useState('12 NOV');
   const [time, setTime] = useState('10:30');
   const [stadium, setStadium] = useState('Campo de Terra do Alvorada');
+  const [address, setAddress] = useState('');
   const [type, setType] = useState('AMISTOSO');
   const [isHome, setIsHome] = useState(true);
 
@@ -145,7 +146,8 @@ export function ScheduleMatchModal({ onClose, onSubmit }: ScheduleMatchModalProp
       homeTeam: isHome ? 'Unidos' : opponent,
       awayTeam: isHome ? opponent : 'Unidos',
       time,
-      stadium
+      stadium,
+      address: address || undefined
     });
   };
 
@@ -229,6 +231,18 @@ export function ScheduleMatchModal({ onClose, onSubmit }: ScheduleMatchModalProp
         </div>
 
         <div className="space-y-1.5">
+          <label className="font-bold text-on-surface">Endereço Completo</label>
+          <input
+            type="text"
+            value={address}
+            onChange={e => setAddress(e.target.value)}
+            className="w-full px-4 py-2 bg-surface-container-low border border-outline-variant/20 rounded-lg outline-none focus:ring-2 focus:ring-primary font-medium"
+            placeholder="Ex: Av. Alvorada, 1984 - Jardim Alvorada, Suzano - SP"
+          />
+          <p className="text-[10px] text-on-surface-variant font-medium">Usado no Google Maps. Deixe em branco para usar o endereço padrão do estádio.</p>
+        </div>
+
+        <div className="space-y-1.5">
           <label className="font-bold text-on-surface">Campeonato</label>
           <input
             type="text"
@@ -274,6 +288,7 @@ export function EditMatchModal({ match, onClose, onSubmit }: EditMatchModalProps
   const [date, setDate] = useState(match.date);
   const [time, setTime] = useState(match.time || '');
   const [stadium, setStadium] = useState(match.stadium);
+  const [address, setAddress] = useState(match.address || '');
   const [type, setType] = useState(match.type);
   const [homeScore, setHomeScore] = useState(match.homeScore !== undefined ? String(match.homeScore) : '');
   const [awayScore, setAwayScore] = useState(match.awayScore !== undefined ? String(match.awayScore) : '');
@@ -298,6 +313,7 @@ export function EditMatchModal({ match, onClose, onSubmit }: EditMatchModalProps
       date,
       time: time || undefined,
       stadium,
+      address: address || undefined,
       type,
       homeScore: hScore,
       awayScore: aScore,
@@ -402,6 +418,18 @@ export function EditMatchModal({ match, onClose, onSubmit }: EditMatchModalProps
         </div>
 
         <div className="space-y-1.5">
+          <label className="font-bold text-on-surface">Endereço Completo</label>
+          <input
+            type="text"
+            value={address}
+            onChange={e => setAddress(e.target.value)}
+            className="w-full px-4 py-2 bg-surface-container-low border border-outline-variant/20 rounded-lg outline-none focus:ring-2 focus:ring-primary font-medium"
+            placeholder="Ex: Av. Alvorada, 1984 - Jardim Alvorada, Suzano - SP"
+          />
+          <p className="text-[10px] text-on-surface-variant font-medium">Usado no Google Maps. Deixe em branco para usar o endereço padrão do estádio.</p>
+        </div>
+
+        <div className="space-y-1.5">
           <label className="font-bold text-on-surface">Campeonato</label>
           <input
             type="text"
@@ -485,7 +513,7 @@ export function AddPlayerModal({ onClose, onSubmit }: AddPlayerModalProps) {
       country,
       isInjured: false,
       phone: phone || undefined,
-      isBoardMember: isBoardMember || undefined
+      isBoardMember: isBoardMember === true ? true : undefined
     });
   };
 
@@ -816,6 +844,7 @@ export function PlayerDetailsModal({ player, onClose, onUpdatePlayer, session }:
   const [image, setImage] = useState(player.image);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const canEdit = session?.role === 'admin' || session?.playerId === player.id;
 
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const streamRef = React.useRef<MediaStream | null>(null);
@@ -917,32 +946,34 @@ export function PlayerDetailsModal({ player, onClose, onUpdatePlayer, session }:
             <p className="text-xs text-on-surface-variant font-medium">
               Camisa {player.number} • {player.position}
             </p>
-            <div className="flex gap-2 mt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  if (isCameraActive) {
-                    stopCamera();
-                  } else {
-                    startCamera();
-                  }
-                }}
-                className="px-2.5 py-1 bg-primary/10 text-primary hover:bg-primary/20 text-xs font-bold rounded-lg transition-all flex items-center gap-1 cursor-pointer"
-              >
-                <Camera className="w-3.5 h-3.5" />
-                {isCameraActive ? 'Fechar Câmera' : 'Tirar Foto'}
-              </button>
-              <label className="px-2.5 py-1 bg-surface-container text-on-surface hover:bg-surface-container-high text-xs font-bold rounded-lg transition-all flex items-center gap-1 cursor-pointer">
-                <Upload className="w-3.5 h-3.5" />
-                <span>Upload</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                />
-              </label>
-            </div>
+            {canEdit && (
+              <div className="flex gap-2 mt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isCameraActive) {
+                      stopCamera();
+                    } else {
+                      startCamera();
+                    }
+                  }}
+                  className="px-2.5 py-1 bg-primary/10 text-primary hover:bg-primary/20 text-xs font-bold rounded-lg transition-all flex items-center gap-1 cursor-pointer"
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                  {isCameraActive ? 'Fechar Câmera' : 'Tirar Foto'}
+                </button>
+                <label className="px-2.5 py-1 bg-surface-container text-on-surface hover:bg-surface-container-high text-xs font-bold rounded-lg transition-all flex items-center gap-1 cursor-pointer">
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Upload</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1091,7 +1122,7 @@ export function PlayerDetailsModal({ player, onClose, onUpdatePlayer, session }:
                       const newPin = String(Math.floor(100000 + Math.random() * 900000));
                       crypto.subtle.digest('SHA-256', new TextEncoder().encode(newPin)).then(hash => {
                         const hashedPin = Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
-                        onUpdatePlayer(player.id, { pin: hashedPin });
+                        onUpdatePlayer(player.id, { pin: hashedPin, mustChangePin: true });
                       });
                       alert(`PIN de ${player.name} resetado! Novo PIN: ${newPin}. Anote e entregue ao atleta.`);
                       onClose();
@@ -1141,35 +1172,45 @@ export function PlayerDetailsModal({ player, onClose, onUpdatePlayer, session }:
               </a>
             )}
           </div>
-          <input
-            type="tel"
-            placeholder="Ex: 11999999999"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
-            className="w-full px-3 py-1.5 bg-white border border-outline-variant/20 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 font-medium text-xs"
-          />
+          {canEdit ? (
+            <input
+              type="tel"
+              placeholder="Ex: 11999999999"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+              className="w-full px-3 py-1.5 bg-white border border-outline-variant/20 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 font-medium text-xs"
+            />
+          ) : (
+            <p className="text-xs font-medium text-on-surface-variant">
+              {player.phone ? `Telefone: ${player.phone}` : 'Sem telefone cadastrado'}
+            </p>
+          )}
         </div>
 
         {/* Adjust condition slider */}
         <div className="space-y-2.5">
           <div className="flex justify-between font-bold text-on-surface">
-            <span>Editar Condição Física</span>
+            <span>{canEdit ? 'Editar Condição Física' : 'Condição Física'}</span>
             <span className={condition > 80 ? 'text-primary' : condition > 50 ? 'text-tertiary-container' : 'text-error font-black'}>
               {condition}%
             </span>
           </div>
-          <input
-            type="range"
-            min="10"
-            max="100"
-            value={condition}
-            onChange={(e) => setCondition(Number(e.target.value))}
-            className="w-full accent-secondary h-2 bg-surface-container rounded-lg appearance-none cursor-pointer"
-          />
-          <div className="flex justify-between text-[10px] text-on-surface-variant uppercase font-bold tracking-wider">
-            <span>Fadiga Extrema</span>
-            <span>Excelente / Pleno</span>
-          </div>
+          {canEdit ? (
+            <>
+              <input
+                type="range"
+                min="10"
+                max="100"
+                value={condition}
+                onChange={(e) => setCondition(Number(e.target.value))}
+                className="w-full accent-secondary h-2 bg-surface-container rounded-lg appearance-none cursor-pointer"
+              />
+              <div className="flex justify-between text-[10px] text-on-surface-variant uppercase font-bold tracking-wider">
+                <span>Fadiga Extrema</span>
+                <span>Excelente / Pleno</span>
+              </div>
+            </>
+          ) : null}
         </div>
 
         {/* Toggle Injury status */}
@@ -1183,27 +1224,37 @@ export function PlayerDetailsModal({ player, onClose, onUpdatePlayer, session }:
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                setIsInjured(!isInjured);
-                if (!isInjured) {
-                  setCondition(45);
-                } else {
-                  setCondition(90);
-                }
-              }}
-              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            {canEdit ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsInjured(!isInjured);
+                  if (!isInjured) {
+                    setCondition(45);
+                  } else {
+                    setCondition(90);
+                  }
+                }}
+                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  isInjured
+                    ? 'bg-secondary text-white shadow'
+                    : 'bg-surface-container text-on-surface hover:bg-surface-container-high'
+                }`}
+              >
+                {isInjured ? 'Lesionado' : 'Liberado'}
+              </button>
+            ) : (
+              <span className={`px-4 py-1.5 rounded-lg text-xs font-bold ${
                 isInjured
-                  ? 'bg-secondary text-white shadow'
-                  : 'bg-surface-container text-on-surface hover:bg-surface-container-high'
-              }`}
-            >
-              {isInjured ? 'Lesionado' : 'Liberado'}
-            </button>
+                  ? 'bg-secondary text-white'
+                  : 'bg-surface-container text-on-surface'
+              }`}>
+                {isInjured ? 'Lesionado' : 'Liberado'}
+              </span>
+            )}
           </div>
 
-          {isInjured && (
+          {isInjured && canEdit && (
             <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-200">
               <label className="font-bold text-xs text-on-surface-variant uppercase tracking-wider">
                 Previsão de Retorno (Observação)
@@ -1217,6 +1268,13 @@ export function PlayerDetailsModal({ player, onClose, onUpdatePlayer, session }:
               />
             </div>
           )}
+          {isInjured && !canEdit && (
+            <div className="space-y-1.5 animate-in fade-in duration-200">
+              <p className="text-xs font-medium text-on-surface-variant">
+                Observação: {injuryNote}
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="pt-4 border-t border-outline-variant/10 flex gap-3 mt-2">
@@ -1227,13 +1285,15 @@ export function PlayerDetailsModal({ player, onClose, onUpdatePlayer, session }:
           >
             Fechar
           </button>
-          <button
-            type="button"
-            onClick={handleApplyChanges}
-            className="flex-1 py-2.5 bg-secondary text-white hover:brightness-110 font-bold rounded-lg transition-all shadow-md active:scale-95"
-          >
-            Aplicar Boletim
-          </button>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={handleApplyChanges}
+              className="flex-1 py-2.5 bg-secondary text-white hover:brightness-110 font-bold rounded-lg transition-all shadow-md active:scale-95"
+            >
+              Aplicar Boletim
+            </button>
+          )}
         </div>
 
       </div>

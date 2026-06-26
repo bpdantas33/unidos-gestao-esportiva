@@ -58,6 +58,7 @@ export default function DashboardView({
       const [dia, mes, ano] = m.date.split('/');
       return new Date(+ano, +mes - 1, +dia) >= today;
     });
+  const [selectedPlayerId, setSelectedPlayerId] = useState('');
   const [copied, setCopied] = useState(false);
   const [showBirthdayWidget, setShowBirthdayWidget] = useState(true);
 
@@ -142,16 +143,15 @@ export default function DashboardView({
 
   // 3. Dynamic Financial Stats
   const calculateFinance = () => {
-    const active = transactions.filter(t => !t.cancelled);
-    const monthlyRevenues = active
+    const monthlyRevenues = transactions
       .filter((t) => t.category === 'RECEITA')
       .reduce((acc, curr) => acc + curr.amount, 0);
 
-    const monthlyExpenses = active
+    const monthlyExpenses = transactions
       .filter((t) => t.category === 'DESPESA')
       .reduce((acc, curr) => acc + curr.amount, 0);
 
-    const finalBalance = active.reduce((acc, curr) => acc + (curr.category === 'RECEITA' ? curr.amount : -curr.amount), 0);
+    const finalBalance = transactions.reduce((acc, curr) => acc + (curr.category === 'RECEITA' ? curr.amount : -curr.amount), 0);
 
     return {
       balance: finalBalance,
@@ -230,31 +230,25 @@ export default function DashboardView({
       {/* Bento Grid Layer 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
-        {/* Next Match Hero Card (8 Cols) — Dark Football Pitch Theme */}
-        <section className="lg:col-span-8 bg-gradient-to-br from-[#13227e] to-[#0c1658] rounded-xl overflow-hidden relative min-h-[380px] flex items-center p-8 md:p-12 shadow-2xl border-b-4 border-[#d4af37]">
-          <div className="absolute inset-0 opacity-[0.02] bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
+        {/* Next Match Hero Card (8 Cols) */}
+        <section className="lg:col-span-8 bg-primary rounded-xl overflow-hidden relative min-h-[380px] flex items-center p-8 md:p-12 shadow-2xl border-b-4 border-tertiary">
+          <div className="absolute inset-0 opacity-15 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
           
-          <div className="relative z-10 w-full flex flex-col gap-6">
-            <div className="flex flex-col gap-3">
-              <span className="inline-flex items-center gap-2 px-4 py-1.5 bg-[#d4af37]/20 text-[#d4af37] font-black text-[11px] rounded-full w-fit shadow-lg tracking-widest border border-[#d4af37]/30 uppercase">
-                <Timer className="w-4 h-4 status-pulse rounded-full text-[#d4af37]" />
+          <div className="relative z-10 w-full flex flex-col md:flex-row items-center justify-between gap-12">
+            <div className="flex flex-col gap-4">
+              <span className="inline-flex items-center gap-2 px-4 py-1.5 bg-secondary text-white font-bold text-[11px] rounded-full w-fit shadow-lg tracking-wider">
+                <Timer className="w-4 h-4 status-pulse rounded-full text-tertiary-fixed-dim" />
                 PRÓXIMO CONFRONTO
               </span>
               
-              <h2 className="text-3xl md:text-4xl font-extrabold text-white tracking-tight leading-none mt-1">
-                {nextMatch ? `Contra o ${nextMatch.homeTeam.includes('Unidos') ? nextMatch.awayTeam : nextMatch.homeTeam}` : 'Clássico de Sábado'}
+              <h2 className="text-4xl font-extrabold text-white tracking-tight leading-none mt-2">
+                {nextMatch ? `Contra o ${nextMatch.homeTeam .includes('Unidos') ? nextMatch.awayTeam : nextMatch.homeTeam}` : 'Clássico de Sábado'}
               </h2>
-
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm md:text-base text-[#d4af37]/80 font-medium">
-                <span>{nextMatch ? nextMatch.stadium : 'Estádio'}</span>
-                <span className="text-white/30">•</span>
-                <span>{nextMatch ? nextMatch.date : 'Data'}</span>
-                <span className="text-white/30">•</span>
-                <span>{nextMatch ? `${nextMatch.time}h` : 'Horário'}</span>
-              </div>
-
-              <p className="text-xs text-white/60 font-semibold flex items-center gap-1.5">
-                <span>📍</span>
+              <p className="text-primary-fixed-dim font-medium text-base md:text-lg max-w-md">
+                {nextMatch ? `${nextMatch.stadium} • ${nextMatch.date} • ${nextMatch.time}h` : 'Campo de Terra do Alvorada • Sábado, 10:30h'}
+              </p>
+              <p className="text-xs text-white/70 font-semibold flex items-center gap-1.5 -mt-2">
+                <span className="text-tertiary">📍</span>
                 {nextMatch?.address ?? (nextMatch?.stadium === 'Campo de Terra do Alvorada' || !nextMatch
                   ? 'Av. Alvorada, 1984 - Jardim Alvorada, Suzano - SP'
                   : nextMatch.stadium === 'Arena Poeirão'
@@ -265,12 +259,177 @@ export default function DashboardView({
                   ? 'Av. dos Jatobás, 120 - Parque Maria Helena, Suzano - SP'
                   : 'Rua do Campo, s/n - Suzano - SP')}
               </p>
+              
+              {/* Dynamic Quick RSVP Widget */}
+              {nextMatch && (
+                <div className="mt-4 p-4 bg-white/10 backdrop-blur-md rounded-xl border border-white/10 flex flex-col gap-2 w-full max-w-sm">
+                  {session?.role === 'player' ? (
+                    (() => {
+                      const loggedPlayer = players.find(p => p.id === session.playerId);
+                      const isConfirmed = nextMatch.confirmedPlayers?.includes(session.playerId || '');
+                      return (
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2">
+                            <span className={`w-2.5 h-2.5 rounded-full ${isConfirmed ? 'bg-green-400' : 'bg-amber-400'} status-pulse`} />
+                            <span className="text-xs font-bold text-white uppercase tracking-wider">
+                              Olá, {loggedPlayer?.name.split(' ')[0]}!
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-primary-fixed-dim font-semibold leading-relaxed">
+                            {isConfirmed 
+                              ? "Você está confirmado para o jogo deste sábado! Vamos com tudo! ⚽🔥"
+                              : "Você ainda não confirmou presença para este sábado. Por favor, responda abaixo:"}
+                          </p>
+                          <div className="flex gap-2 w-full">
+                            {!isConfirmed ? (
+                              <>
+                                <button
+                                  onClick={() => onConfirmAttendance(nextMatch.id, session.playerId || '', 'CONFIRMADO')}
+                                  className="flex-1 py-2 bg-secondary text-white hover:brightness-110 active:scale-95 rounded-lg text-xs font-extrabold flex items-center justify-center gap-1 shadow transition-all cursor-pointer"
+                                >
+                                  Vou Jogar! 👍
+                                </button>
+                                <button
+                                  onClick={() => onConfirmAttendance(nextMatch.id, session.playerId || '', 'AUSENTE')}
+                                  className="flex-1 py-2 bg-error-container text-on-error-container hover:brightness-95 active:scale-95 rounded-lg text-xs font-bold flex items-center justify-center gap-1 shadow transition-all cursor-pointer"
+                                >
+                                  Não vou ❌
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                onClick={() => onConfirmAttendance(nextMatch.id, session.playerId || '', 'AUSENTE')}
+                                className="w-full py-2 bg-error-container text-on-error-container hover:brightness-95 active:scale-95 rounded-lg text-xs font-bold flex items-center justify-center gap-1 shadow transition-all cursor-pointer"
+                              >
+                                Cancelar Presença (Não vou) ❌
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-tertiary status-pulse" />
+                        <span className="text-xs font-bold text-white uppercase tracking-wider">Confirme se Você Vai para o Jogo:</span>
+                      </div>
+                      
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <select
+                          value={selectedPlayerId}
+                          onChange={(e) => setSelectedPlayerId(e.target.value)}
+                          className="px-2.5 py-1.5 bg-white text-primary rounded-lg text-xs font-bold outline-none border border-transparent focus:ring-2 focus:ring-tertiary w-full"
+                        >
+                          <option value="">-- Escolha seu nome --</option>
+                          {players.map(p => (
+                            <option key={p.id} value={p.id}>
+                              #{p.number} - {p.name}
+                            </option>
+                          ))}
+                        </select>
+                        
+                        <div className="flex gap-2 w-full sm:w-auto shrink-0">
+                            <button
+                              onClick={() => {
+                                if (!selectedPlayerId) return;
+                                onConfirmAttendance(nextMatch.id, selectedPlayerId, 'CONFIRMADO');
+                                setSelectedPlayerId('');
+                              }}
+                              disabled={!selectedPlayerId}
+                              className="flex-1 sm:flex-initial py-1.5 bg-secondary text-white hover:brightness-110 active:scale-95 disabled:opacity-40 rounded-lg text-xs font-extrabold flex items-center justify-center gap-1 shadow transition-all cursor-pointer"
+                            >
+                              Vou 👍
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (!selectedPlayerId) return;
+                                onConfirmAttendance(nextMatch.id, selectedPlayerId, 'AUSENTE');
+                                setSelectedPlayerId('');
+                              }}
+                              disabled={!selectedPlayerId}
+                              className="flex-1 sm:flex-initial py-1.5 bg-error-container text-on-error-container hover:brightness-95 active:scale-95 disabled:opacity-40 rounded-lg text-xs font-extrabold flex items-center justify-center gap-1 shadow transition-all cursor-pointer"
+                            >
+                            Não ❌
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                  
+                  <p className="text-[10px] text-primary-fixed-dim font-bold pt-1 border-t border-white/5">
+                    {nextMatch.confirmedPlayers?.length || 0} confirmados para este sábado • Elenco: {nextMatch.squad}
+                  </p>
+
+                  {session?.role === 'admin' && (
+                    <div className="pt-2.5 border-t border-white/5 space-y-2">
+                      <p className="text-[10px] text-primary-fixed-dim font-bold uppercase tracking-wider">
+                        ⚽ Status do Elenco
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {players
+                          .filter(p => p.squad === nextMatch.squad)
+                          .sort((a, b) => {
+                            const aOk = nextMatch.confirmedPlayers?.includes(a.id) ?? false;
+                            const bOk = nextMatch.confirmedPlayers?.includes(b.id) ?? false;
+                            return aOk !== bOk ? (aOk ? -1 : 1) : (a.number || 99) - (b.number || 99);
+                          })
+                          .map(p => {
+                            const confirmed = nextMatch.confirmedPlayers?.includes(p.id) ?? false;
+                            return (
+                              <span key={p.id}
+                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border ${
+                                  confirmed
+                                    ? 'bg-green-500/15 text-green-300 border-green-500/20'
+                                    : 'bg-white/5 text-white/50 border-white/10'
+                                }`}
+                              >
+                                <span className={`w-1.5 h-1.5 rounded-full ${confirmed ? 'bg-green-400' : 'bg-white/20'}`} />
+                                #{p.number} {p.name.split(' ')[0]}
+                              </span>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Live Countdown */}
+              {!nextMatch && (
+                <div className="flex gap-6 mt-6">
+                  <div className="flex flex-col">
+                    <span className="text-3xl font-extrabold text-tertiary-fixed leading-none">
+                      {String(countdown.days).padStart(2, '0')}
+                    </span>
+                    <span className="text-primary-fixed-dim font-bold uppercase tracking-widest text-[10px] mt-1">Dias</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-3xl font-extrabold text-tertiary-fixed leading-none">
+                      {String(countdown.hours).padStart(2, '0')}
+                    </span>
+                    <span className="text-primary-fixed-dim font-bold uppercase tracking-widest text-[10px] mt-1">Horas</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-3xl font-extrabold text-tertiary-fixed leading-none">
+                      {String(countdown.minutes).padStart(2, '0')}
+                    </span>
+                    <span className="text-primary-fixed-dim font-bold uppercase tracking-widest text-[10px] mt-1">Minutos</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-3xl font-extrabold text-white/50 leading-none">
+                      {String(countdown.seconds).padStart(2, '0')}
+                    </span>
+                    <span className="text-primary-fixed-dim font-bold uppercase tracking-widest text-[10px] mt-1">Segundos</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Shield vs Shield visualizer */}
-            <div className="flex items-center justify-center gap-4 md:gap-6 bg-white/5 backdrop-blur-md p-5 md:p-6 rounded-2xl border border-white/10 shadow-inner w-full max-w-md mx-auto">
+            <div className="flex items-center gap-6 md:gap-8 bg-white/5 backdrop-blur-md p-6 md:p-8 rounded-2xl border border-white/10 shadow-inner">
               <div className="flex flex-col items-center gap-2">
-                <div className="w-20 h-20 md:w-24 md:h-24 bg-white rounded-full flex items-center justify-center overflow-hidden shadow-2xl border-4 border-[#d4af37]/50 relative">
+                <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center overflow-hidden shadow-2xl border-4 border-tertiary relative">
                   <img
                     alt="Unidos Logo"
                     className="w-full h-full object-cover scale-[1.35]"
@@ -278,121 +437,25 @@ export default function DashboardView({
                     referrerPolicy="no-referrer"
                   />
                 </div>
-                <span className="font-bold text-xs md:text-sm text-white uppercase tracking-wider">Unidos</span>
+                <span className="font-bold text-sm text-white uppercase tracking-wider">Unidos</span>
               </div>
               
-              <span className="text-2xl md:text-3xl font-black text-[#d4af37]/60 italic font-mono">VS</span>
+              <span className="text-3xl font-black text-tertiary-fixed opacity-70 italic font-mono">VS</span>
               
               <div className="flex flex-col items-center gap-2">
-                <div className="w-20 h-20 md:w-24 md:h-24 bg-white/10 backdrop-blur rounded-full flex items-center justify-center p-4 shadow-xl border-4 border-white/10">
+                <div className="w-24 h-24 bg-white/15 backdrop-blur rounded-full flex items-center justify-center p-4 shadow-xl border-4 border-transparent">
                   <img
                     alt="Oponente Logo"
                     className="w-full h-full object-contain"
-                    src={nextMatch ? (nextMatch.homeTeam.includes('Unidos') ? nextMatch.awayLogo : nextMatch.homeLogo) : TITANS_LOGO}
+                    src={nextMatch ? (nextMatch.homeTeam .includes('Unidos') ? nextMatch.awayLogo : nextMatch.homeLogo) : TITANS_LOGO}
                     referrerPolicy="no-referrer"
                   />
                 </div>
-                <span className="font-bold text-xs md:text-sm text-white/70 uppercase tracking-wider">
-                  {nextMatch ? (nextMatch.homeTeam.includes('Unidos') ? nextMatch.awayTeam : nextMatch.homeTeam) : "Titans F.C."}
+                <span className="font-bold text-sm text-white/80 uppercase tracking-wider">
+                  {nextMatch ? (nextMatch.homeTeam .includes('Unidos') ? nextMatch.awayTeam : nextMatch.homeTeam) : "Titans F.C."}
                 </span>
               </div>
             </div>
-
-            {/* Confirmation section — only when nextMatch exists */}
-            {nextMatch && session?.playerId && (
-              (() => {
-                const loggedPlayer = players.find(p => p.id === session.playerId);
-                const isConfirmed = nextMatch.confirmedPlayers?.includes(session.playerId || '');
-                return (
-                  <div className="p-4 bg-white/5 backdrop-blur-md rounded-xl border border-white/10 space-y-3 w-full max-w-md">
-                    <div className="flex items-center gap-2">
-                      <span className={`w-2.5 h-2.5 rounded-full ${isConfirmed ? 'bg-green-400' : 'bg-amber-400'} status-pulse`} />
-                      <span className="text-xs font-bold text-white uppercase tracking-wider">
-                        Olá, {loggedPlayer?.name.split(' ')[0]}!
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-white/70 font-semibold leading-relaxed">
-                      {isConfirmed 
-                        ? "Você está confirmado para o jogo deste sábado! Vamos com tudo! ⚽🔥"
-                        : "Você ainda não confirmou presença. Confirme abaixo:"}
-                    </p>
-                    <div className="flex gap-2 w-full">
-                      {!isConfirmed ? (
-                        <>
-                          <button
-                            onClick={() => onConfirmAttendance(nextMatch.id, session.playerId || '', 'CONFIRMADO')}
-                            className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-lg transition-all active:scale-95 shadow-md flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider"
-                          >
-                            CONFIRMAR PRESENÇA
-                          </button>
-                          <button
-                            onClick={() => onConfirmAttendance(nextMatch.id, session.playerId || '', 'AUSENTE')}
-                            className="flex-1 py-2.5 bg-red-700 hover:bg-red-800 text-white font-extrabold text-xs rounded-lg transition-all active:scale-95 shadow-md flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider"
-                          >
-                            RECUSAR
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          onClick={() => onConfirmAttendance(nextMatch.id, session.playerId || '', 'AUSENTE')}
-                          className="w-full py-2.5 bg-red-700 hover:bg-red-800 text-white font-extrabold text-xs rounded-lg transition-all active:scale-95 shadow-md flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider"
-                        >
-                          CANCELAR PRESENÇA
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })()
-            )}
-
-            {/* Admin Master Access — status list only */}
-            {nextMatch && session?.role === 'admin' && !session?.playerId && (
-              <div className="p-4 bg-white/5 backdrop-blur-md rounded-xl border border-white/10 space-y-2 w-full max-w-md">
-                <p className="text-xs font-bold text-[#d4af37] uppercase tracking-wider">
-                  ✅ {nextMatch.confirmedPlayers?.length || 0} CONFIRMADOS
-                </p>
-                <div className="flex flex-wrap gap-x-3 gap-y-1">
-                  {players
-                    .filter(p => p.squad === nextMatch.squad)
-                    .sort((a, b) => {
-                      const aOk = nextMatch.confirmedPlayers?.includes(a.id) ?? false;
-                      const bOk = nextMatch.confirmedPlayers?.includes(b.id) ?? false;
-                      return aOk !== bOk ? (aOk ? -1 : 1) : (a.number || 99) - (b.number || 99);
-                    })
-                    .map(p => {
-                      const confirmed = nextMatch.confirmedPlayers?.includes(p.id) ?? false;
-                      return (
-                        <span key={p.id} className="text-[11px] font-bold flex items-center gap-1">
-                          <span className={`w-1.5 h-1.5 rounded-full ${confirmed ? 'bg-green-400' : 'bg-white/20'}`} />
-                          <span className={confirmed ? 'text-white' : 'text-white/40'}>
-                            #{p.number} {p.name.split(' ')[0]}
-                          </span>
-                        </span>
-                      );
-                    })}
-                </div>
-              </div>
-            )}
-
-            {/* Live Countdown — when no match */}
-            {!nextMatch && (
-              <div className="flex gap-6">
-                {[
-                  { label: 'Dias', value: countdown.days },
-                  { label: 'Horas', value: countdown.hours },
-                  { label: 'Minutos', value: countdown.minutes },
-                  { label: 'Segundos', value: countdown.seconds },
-                ].map(item => (
-                  <div key={item.label} className="flex flex-col items-center">
-                    <span className="text-3xl font-extrabold text-[#d4af37] leading-none">
-                      {String(item.value).padStart(2, '0')}
-                    </span>
-                    <span className="text-white/50 font-bold uppercase tracking-widest text-[10px] mt-1">{item.label}</span>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         </section>
 
@@ -654,81 +717,54 @@ export default function DashboardView({
             </div>
           </div>
 
-          <div className="space-y-1 max-h-[440px] overflow-y-auto custom-scrollbar pr-1">
-            {(() => {
-              const grouped = {
-                lesionados: players.filter(p => p.isInjured),
-                atencao: players.filter(p => !p.isInjured && p.condition < 80),
-                disponiveis: players.filter(p => !p.isInjured && p.condition >= 80),
-              };
-              const sections = [
-                { key: 'disponiveis', label: '✅ DISPONÍVEIS', color: 'text-primary', data: grouped.disponiveis },
-                { key: 'atencao', label: '⚠️ ATENÇÃO', color: 'text-tertiary', data: grouped.atencao },
-                { key: 'lesionados', label: '❌ LESIONADOS', color: 'text-secondary', data: grouped.lesionados },
-              ].filter(s => s.data.length > 0);
+          <div className="space-y-3.5">
+            {players.slice(0, 3).map((player) => {
+              const conditionColor = player.condition > 85 ? 'text-primary' : player.condition > 60 ? 'text-tertiary' : 'text-secondary';
+              const isInjured = player.isInjured;
 
-              return sections.flatMap((section, si) => [
-                <p key={`h-${section.key}`} className={`text-[11px] font-black uppercase tracking-wider pt-${si > 0 ? '3' : '0'} pb-1 ${section.color} sticky top-0 bg-white z-10`}>
-                  {section.label} ({section.data.length})
-                </p>,
-                ...section.data.map((player) => {
-                  const barColor = player.condition >= 80 ? 'bg-primary' : player.condition >= 50 ? 'bg-tertiary' : 'bg-secondary';
-                  const barWidth = player.condition;
-                  const isInjured = player.isInjured;
-
-                  return (
-                    <div
-                      key={player.id}
-                      onClick={() => onPlayerClick(player)}
-                      className="flex items-center justify-between py-2.5 px-2 hover:bg-surface-container rounded-xl transition-all cursor-pointer group border border-transparent hover:border-outline-variant/20"
-                    >
-                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <div className={`w-10 h-10 rounded-full border-2 overflow-hidden shrink-0 ${
-                          isInjured ? 'border-secondary' : 'border-primary'
-                        }`}>
-                          <img
-                            alt={player.name}
-                    className="w-full h-full object-cover"
-                            src={player.image}
-                            referrerPolicy="no-referrer"
-                          />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="font-bold text-sm text-on-surface group-hover:text-primary transition-colors truncate">
-                            #{player.number} {player.name}
-                          </p>
-                          <p className="text-[11px] text-on-surface-variant mt-0.5">
-                            {player.position}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3 shrink-0 ml-3">
-                        <div className="flex flex-col items-end gap-1">
-                          <span className={`text-xs font-black ${
-                            isInjured ? 'text-secondary' : player.condition >= 80 ? 'text-primary' : 'text-tertiary'
-                          }`}>
-                            {player.condition}%
-                          </span>
-                          <div className="w-16 h-1.5 bg-surface-container rounded-full overflow-hidden">
-                            <div className={`h-full rounded-full ${barColor}`} style={{ width: `${barWidth}%` }} />
-                          </div>
-                        </div>
-                        {isInjured ? (
-                          <AlertTriangle className="w-4 h-4 text-secondary shrink-0" />
-                        ) : player.condition >= 90 ? (
-                          <CheckCircle className="w-4 h-4 text-primary shrink-0" />
-                        ) : (
-                          <div className="w-7 h-7 rounded-full bg-surface-container flex items-center justify-center shrink-0">
-                            <Activity className="w-3.5 h-3.5 text-on-surface-variant" />
-                          </div>
-                        )}
-                      </div>
+              return (
+                <div
+                  key={player.id}
+                  onClick={() => onPlayerClick(player)}
+                  className="flex items-center justify-between p-3.5 hover:bg-surface-container rounded-xl transition-all cursor-pointer group border border-transparent hover:border-outline-variant/20"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className={`w-12 h-12 rounded-full border-2 overflow-hidden shadow-sm ${
+                      isInjured ? 'border-secondary' : 'border-primary'
+                    }`}>
+                      <img
+                        alt={player.name}
+                        className="w-full h-full object-cover"
+                        src={player.image}
+                        referrerPolicy="no-referrer"
+                      />
                     </div>
-                  );
-                }),
-              ]);
-            })()}
+                    <div>
+                      <p className="font-bold text-sm text-on-surface group-hover:text-primary transition-colors">
+                        {player.name}
+                      </p>
+                      <p className="text-xs text-on-surface-variant mt-0.5">
+                        {player.position} • Condição:{' '}
+                        <span className={`font-bold ${conditionColor}`}>
+                          {player.condition}% {isInjured ? `(${player.injuryNote || 'Lesionado'})` : ''}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Icon Status Indicator */}
+                  {isInjured ? (
+                    <AlertTriangle className="w-5 h-5 text-secondary" />
+                  ) : player.condition >= 90 ? (
+                    <CheckCircle className="w-5 h-5 text-primary" />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center">
+                      <Activity className="w-4 h-4 text-on-surface-variant" />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </section>
       </div>

@@ -41,10 +41,18 @@ export async function getCollectionData<T>(collectionName: string): Promise<T[]>
   }
 }
 
+function stripUndefined<T extends Record<string, any>>(obj: T): T {
+  const clean = {} as T;
+  for (const key of Object.keys(obj) as (keyof T)[]) {
+    if (obj[key] !== undefined) clean[key] = obj[key];
+  }
+  return clean;
+}
+
 export async function saveItem<T extends { id: string }>(collectionName: string, item: T): Promise<void> {
   try {
     const docRef = doc(db, collectionName, item.id);
-    await setDoc(docRef, item);
+    await setDoc(docRef, stripUndefined(item));
   } catch (error) {
     console.error(`Error saving item in ${collectionName}:`, error);
     throw error;
@@ -66,7 +74,7 @@ export async function saveCollectionData<T extends { id: string }>(collectionNam
     const batch = writeBatch(db);
     for (const item of items) {
       const docRef = doc(db, collectionName, item.id);
-      batch.set(docRef, item);
+      batch.set(docRef, stripUndefined(item));
     }
     await batch.commit();
   } catch (error) {
