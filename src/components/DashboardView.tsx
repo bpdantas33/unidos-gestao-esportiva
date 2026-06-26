@@ -50,7 +50,14 @@ export default function DashboardView({
   const [carouselIndex, setCarouselIndex] = useState(0);
   const squadMatches = matches.filter(m => m.squad === currentSquad);
   const recentMatches = squadMatches.filter(m => m.homeScore !== undefined || m.status === 'CANCELADO');
-  const nextMatch = squadMatches.find(m => m.status === 'CONFIRMADO');
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const nextMatch = squadMatches
+    .filter(m => m.status === 'CONFIRMADO')
+    .find(m => {
+      const [dia, mes, ano] = m.date.split('/');
+      return new Date(+ano, +mes - 1, +dia) >= today;
+    });
   const [selectedPlayerId, setSelectedPlayerId] = useState('');
   const [copied, setCopied] = useState(false);
   const [showBirthdayWidget, setShowBirthdayWidget] = useState(true);
@@ -235,7 +242,7 @@ export default function DashboardView({
               </span>
               
               <h2 className="text-4xl font-extrabold text-white tracking-tight leading-none mt-2">
-                {nextMatch ? `Contra o ${nextMatch.homeTeam === 'Unidos' ? nextMatch.awayTeam : nextMatch.homeTeam}` : 'Clássico de Sábado'}
+                {nextMatch ? `Contra o ${nextMatch.homeTeam .includes('Unidos') ? nextMatch.awayTeam : nextMatch.homeTeam}` : 'Clássico de Sábado'}
               </h2>
               <p className="text-primary-fixed-dim font-medium text-base md:text-lg max-w-md">
                 {nextMatch ? `${nextMatch.stadium} • ${nextMatch.date} • ${nextMatch.time}h` : 'Campo de Terra do Alvorada • Sábado, 10:30h'}
@@ -408,12 +415,12 @@ export default function DashboardView({
                   <img
                     alt="Oponente Logo"
                     className="w-full h-full object-contain"
-                    src={nextMatch ? (nextMatch.homeTeam === 'Unidos' ? nextMatch.awayLogo : nextMatch.homeLogo) : TITANS_LOGO}
+                    src={nextMatch ? (nextMatch.homeTeam .includes('Unidos') ? nextMatch.awayLogo : nextMatch.homeLogo) : TITANS_LOGO}
                     referrerPolicy="no-referrer"
                   />
                 </div>
                 <span className="font-bold text-sm text-white/80 uppercase tracking-wider">
-                  {nextMatch ? (nextMatch.homeTeam === 'Unidos' ? nextMatch.awayTeam : nextMatch.homeTeam) : "Titans F.C."}
+                  {nextMatch ? (nextMatch.homeTeam .includes('Unidos') ? nextMatch.awayTeam : nextMatch.homeTeam) : "Titans F.C."}
                 </span>
               </div>
             </div>
@@ -559,7 +566,7 @@ export default function DashboardView({
                       />
                     </div>
                     <span className="font-bold text-xs uppercase tracking-tight text-on-surface">
-                      {match.homeTeam === 'Unidos' ? 'UNI' : match.homeTeam.substring(0, 3).toUpperCase()}
+                      {match.homeTeam .includes('Unidos') ? 'UNI' : match.homeTeam.substring(0, 3).toUpperCase()}
                     </span>
                   </div>
 
@@ -583,7 +590,7 @@ export default function DashboardView({
                       />
                     </div>
                     <span className="font-bold text-xs text-on-surface-variant uppercase tracking-tight">
-                      {match.awayTeam === 'Unidos' ? 'UNI' : match.awayTeam.substring(0, 3).toUpperCase()}
+                      {match.awayTeam .includes('Unidos') ? 'UNI' : match.awayTeam.substring(0, 3).toUpperCase()}
                     </span>
                   </div>
                 </div>

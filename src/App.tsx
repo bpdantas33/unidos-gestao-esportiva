@@ -36,7 +36,8 @@ import {
   ScheduleMatchModal,
   AddPlayerModal,
   AddTransactionModal,
-  PlayerDetailsModal
+  PlayerDetailsModal,
+  EditMatchModal
 } from './components/Modals';
 
 export default function App() {
@@ -63,15 +64,9 @@ export default function App() {
     return local ? JSON.parse(local) : initialMatches;
   });
 
-  const [transactions, setTransactions] = useState<Transaction[]>(() => {
-    const local = localStorage.getItem('unidos_transactions');
-    return local ? JSON.parse(local) : initialTransactions;
-  });
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
 
-  const [unpaidMembers, setUnpaidMembers] = useState<UnpaidMember[]>(() => {
-    const local = localStorage.getItem('unidos_unpaid_members');
-    return local ? JSON.parse(local) : initialUnpaidMembers;
-  });
+  const [unpaidMembers, setUnpaidMembers] = useState<UnpaidMember[]>([]);
 
   const [standings, setStandings] = useState<TeamStandings[]>(() => {
     const local = localStorage.getItem('unidos_standings');
@@ -151,23 +146,17 @@ export default function App() {
         }
         setMatches(fbMatches);
 
-        // 3. Carregar Transações
+        // 3. Carregar Transações (nunca re-popular do localStorage)
         let fbTransactions = await getCollectionData<Transaction>('transactions');
         if (fbTransactions.length === 0) {
-          const local = localStorage.getItem('unidos_transactions');
-          const dataToSave = local ? JSON.parse(local) : initialTransactions;
-          await saveCollectionData('transactions', dataToSave);
-          fbTransactions = dataToSave;
+          fbTransactions = [];
         }
         setTransactions(fbTransactions);
 
-        // 4. Carregar Inadimplentes
+        // 4. Carregar Inadimplentes (nunca re-popular do localStorage)
         let fbUnpaid = await getCollectionData<UnpaidMember>('unpaidMembers');
         if (fbUnpaid.length === 0) {
-          const local = localStorage.getItem('unidos_unpaid_members');
-          const dataToSave = local ? JSON.parse(local) : initialUnpaidMembers;
-          await saveCollectionData('unpaidMembers', dataToSave);
-          fbUnpaid = dataToSave;
+          fbUnpaid = [];
         }
         setUnpaidMembers(fbUnpaid);
 
@@ -234,8 +223,9 @@ export default function App() {
   }, [activeTab]);
 
   // 2. Modals Control States
-  const [activeModal, setActiveModal] = useState<null | 'training' | 'scheduleMatch' | 'addPlayer' | 'addTransaction' | 'playerDetails' | 'adminSettings'>(null);
+  const [activeModal, setActiveModal] = useState<null | 'training' | 'scheduleMatch' | 'addPlayer' | 'addTransaction' | 'playerDetails' | 'adminSettings' | 'editMatch'>(null);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
+  const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // 3. Elegant Action Toast Notification Alert State
@@ -356,7 +346,7 @@ export default function App() {
 
     setMatches([newMatch, ...matches]);
     setActiveModal(null);
-    showToast(`Confronto contra ${data.homeTeam === 'Unidos' ? data.awayTeam : data.homeTeam} agendado para o time ${currentSquad}!`, 'success');
+    showToast(`Confronto contra ${data.homeTeam.includes('Unidos') ? data.awayTeam : data.homeTeam} agendado para o time ${currentSquad}!`, 'success');
 
     try {
       await saveItem('matches', newMatch);
@@ -398,14 +388,10 @@ export default function App() {
   };
 
   // Add Transaction & handle uniform player charges
-  const handleAddTransaction = async (data: Omit<Transaction, 'id' | 'date'> & { chargePlayers?: boolean }) => {
-    const today = new Date();
-    const formattedDate = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
-
+  const handleAddTransaction = async (data: Omit<Transaction, 'id'> & { chargePlayers?: boolean }) => {
     const newTx: Transaction = {
       ...data,
       id: "t_" + Date.now(),
-      date: formattedDate
     };
 
     setTransactions([newTx, ...transactions]);
@@ -486,6 +472,36 @@ export default function App() {
     showToast(`Pagamento de ${formatCurrency(amount)} recebido!`, 'success');
   };
 
+  // Generate monthly fee (R$70 per player)
+  const handleGenerateMonthlyFee = async () => {
+    const squadPlayers = players.filter(p => p.squad === currentSquad);
+    if (squadPlayers.length === 0) {
+      showToast('Nenhum jogador cadastrado nesta categoria.', 'error');
+      return;
+    }
+
+    const total = squadPlayers.length * 70;
+    if (!confirm(`Gerar mensalidade de R$70 para cada um dos ${squadPlayers.length} jogadores do ${currentSquad}?\nTotal: R$ ${total.toLocaleString('pt-BR')}`)) return;
+
+    const newUnpaidMembers: UnpaidMember[] = squadPlayers.map((p, idx) => ({
+      id: `up_mensalidade_${Date.now()}_${idx}`,
+      name: p.name,
+      daysLate: 0,
+      amount: 70,
+      image: p.image,
+      reason: `Mensalidade`
+    }));
+
+    setUnpaidMembers(prev => [...newUnpaidMembers, ...prev]);
+    showToast(`Mensalidade de R$70 gerada para ${squadPlayers.length} jogadores do ${currentSquad}!`, 'success');
+
+    try {
+      await saveCollectionData('unpaidMembers', newUnpaidMembers);
+    } catch (e) {
+      console.error("Firebase generate monthly fee error:", e);
+    }
+  };
+
   // Player attendance toggler for matches
   const handleConfirmAttendance = async (matchId: string, playerId: string, status: 'CONFIRMADO' | 'AUSENTE') => {
     let updatedMatch: Match | undefined;
@@ -553,6 +569,27 @@ export default function App() {
       }
     } catch (e) {
       console.error("Firebase update player details error:", e);
+    }
+  };
+
+  // Update Match
+  const handleUpdateMatch = async (id: string, updates: Partial<Match>) => {
+    let updatedMatch: Match | undefined;
+    setMatches(prev => prev.map(m => {
+      if (m.id === id) {
+        updatedMatch = { ...m, ...updates };
+        return updatedMatch;
+      }
+      return m;
+    }));
+    showToast(`Partida atualizada!`, 'success');
+
+    try {
+      if (updatedMatch) {
+        await saveItem('matches', updatedMatch);
+      }
+    } catch (e) {
+      console.error("Firebase update match error:", e);
     }
   };
 
@@ -808,6 +845,10 @@ export default function App() {
                   matches={upcomingMatches}
                   players={players}
                   onOpenScheduleMatch={() => setActiveModal('scheduleMatch')}
+                  onMatchClick={(match) => {
+                    setSelectedMatch(match);
+                    setActiveModal('editMatch');
+                  }}
                   onImportMatches={handleImportMatches}
                   onConfirmAttendance={handleConfirmAttendance}
                   session={session}
@@ -844,6 +885,7 @@ export default function App() {
                   onAddTransaction={handleAddTransaction}
                   onPayLateFee={handlePayLateFee}
                   onOpenNewTransaction={() => setActiveModal('addTransaction')}
+                  onGenerateMonthlyFee={handleGenerateMonthlyFee}
                   session={session}
                   showToast={showToast}
                 />
@@ -892,6 +934,17 @@ export default function App() {
             }}
             onUpdatePlayer={handleUpdatePlayerDetails}
             session={session}
+          />
+        )}
+
+        {activeModal === 'editMatch' && selectedMatch && (
+          <EditMatchModal
+            match={selectedMatch}
+            onClose={() => {
+              setActiveModal(null);
+              setSelectedMatch(null);
+            }}
+            onSubmit={handleUpdateMatch}
           />
         )}
 

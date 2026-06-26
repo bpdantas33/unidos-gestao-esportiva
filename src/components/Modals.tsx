@@ -259,6 +259,181 @@ export function ScheduleMatchModal({ onClose, onSubmit }: ScheduleMatchModalProp
   );
 }
 
+// 2.5 EDIT MATCH MODAL
+interface EditMatchModalProps {
+  match: Match;
+  onClose: () => void;
+  onSubmit: (id: string, updates: Partial<Match>) => void;
+}
+
+export function EditMatchModal({ match, onClose, onSubmit }: EditMatchModalProps) {
+  const isUnidosHome = match.homeTeam.includes('Unidos');
+  const [opponentName, setOpponentName] = useState(isUnidosHome ? match.awayTeam : match.homeTeam);
+  const [opponentLogo, setOpponentLogo] = useState(isUnidosHome ? match.awayLogo : match.homeLogo);
+  const [isHome, setIsHome] = useState(isUnidosHome);
+  const [date, setDate] = useState(match.date);
+  const [time, setTime] = useState(match.time || '');
+  const [stadium, setStadium] = useState(match.stadium);
+  const [type, setType] = useState(match.type);
+  const [homeScore, setHomeScore] = useState(match.homeScore !== undefined ? String(match.homeScore) : '');
+  const [awayScore, setAwayScore] = useState(match.awayScore !== undefined ? String(match.awayScore) : '');
+
+  const handleSave = () => {
+    const hScore = homeScore ? parseInt(homeScore) : undefined;
+    const aScore = awayScore ? parseInt(awayScore) : undefined;
+    let status = match.status;
+    if (hScore !== undefined && aScore !== undefined) {
+      if (hScore > aScore) status = 'VITÓRIA';
+      else if (hScore < aScore) status = 'DERROTA';
+      else status = 'EMPATE';
+    } else if (status !== 'CONFIRMADO' && status !== 'CANCELADO') {
+      status = 'CONFIRMADO';
+    }
+
+    onSubmit(match.id, {
+      homeTeam: isHome ? 'Unidos Suzano' : opponentName,
+      awayTeam: isHome ? opponentName : 'Unidos Suzano',
+      homeLogo: isHome ? UNIDOS_LOGO : opponentLogo,
+      awayLogo: isHome ? opponentLogo : UNIDOS_LOGO,
+      date,
+      time: time || undefined,
+      stadium,
+      type,
+      homeScore: hScore,
+      awayScore: aScore,
+      status
+    });
+    onClose();
+  };
+
+  return (
+    <ModalWrapper title="Editar Partida" onClose={onClose}>
+      <div className="space-y-4 text-sm">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <label className="font-bold text-on-surface">Adversário</label>
+            <input
+              type="text"
+              required
+              value={opponentName}
+              onChange={e => setOpponentName(e.target.value)}
+              className="w-full px-4 py-2 bg-surface-container-low border border-outline-variant/20 rounded-lg outline-none focus:ring-2 focus:ring-primary font-medium"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="font-bold text-on-surface">Mando de Campo</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setIsHome(true)}
+                className={`py-2 rounded-lg font-bold text-xs border transition-all ${isHome ? 'bg-primary text-white border-primary' : 'bg-surface-container border-transparent'}`}>
+                Casa
+              </button>
+              <button type="button" onClick={() => setIsHome(false)}
+                className={`py-2 rounded-lg font-bold text-xs border transition-all ${!isHome ? 'bg-primary text-white border-primary' : 'bg-surface-container border-transparent'}`}>
+                Fora
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="font-bold text-on-surface">URL do Logo do Adversário</label>
+          <input
+            type="text"
+            value={opponentLogo}
+            onChange={e => setOpponentLogo(e.target.value)}
+            className="w-full px-4 py-2 bg-surface-container-low border border-outline-variant/20 rounded-lg outline-none focus:ring-2 focus:ring-primary font-medium"
+            placeholder="https://..."
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <label className="font-bold text-on-surface">Data (DD/MM/AAAA)</label>
+            <input
+              type="text"
+              required
+              value={date}
+              onChange={e => setDate(e.target.value)}
+              className="w-full px-4 py-2 bg-surface-container-low border border-outline-variant/20 rounded-lg outline-none focus:ring-2 focus:ring-primary font-medium"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="font-bold text-on-surface">Horário</label>
+            <input
+              type="text"
+              value={time}
+              onChange={e => setTime(e.target.value)}
+              className="w-full px-4 py-2 bg-surface-container-low border border-outline-variant/20 rounded-lg outline-none focus:ring-2 focus:ring-primary font-medium"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="font-bold text-on-surface">Estádio</label>
+          <input
+            type="text"
+            required
+            value={stadium}
+            onChange={e => setStadium(e.target.value)}
+            className="w-full px-4 py-2 bg-surface-container-low border border-outline-variant/20 rounded-lg outline-none focus:ring-2 focus:ring-primary font-medium"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="font-bold text-on-surface">Campeonato</label>
+          <input
+            type="text"
+            required
+            value={type}
+            onChange={e => setType(e.target.value)}
+            className="w-full px-4 py-2 bg-surface-container-low border border-outline-variant/20 rounded-lg outline-none focus:ring-2 focus:ring-primary font-medium"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <label className="font-bold text-on-surface">Placar Casa</label>
+            <input
+              type="number"
+              min="0"
+              value={homeScore}
+              onChange={e => setHomeScore(e.target.value)}
+              className="w-full px-4 py-2 bg-surface-container-low border border-outline-variant/20 rounded-lg outline-none focus:ring-2 focus:ring-primary font-medium"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="font-bold text-on-surface">Placar Visitante</label>
+            <input
+              type="number"
+              min="0"
+              value={awayScore}
+              onChange={e => setAwayScore(e.target.value)}
+              className="w-full px-4 py-2 bg-surface-container-low border border-outline-variant/20 rounded-lg outline-none focus:ring-2 focus:ring-primary font-medium"
+            />
+          </div>
+        </div>
+
+        <div className="pt-4 border-t border-outline-variant/10 flex gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 py-2.5 bg-surface-container-low text-on-surface hover:bg-surface-container font-bold rounded-lg"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            className="flex-1 py-2.5 bg-secondary text-white hover:brightness-110 font-bold rounded-lg transition-all shadow-md active:scale-95"
+          >
+            Salvar Alterações
+          </button>
+        </div>
+      </div>
+    </ModalWrapper>
+  );
+}
+
 // 3. ADD ATHLETE MODAL
 interface AddPlayerModalProps {
   onClose: () => void;
@@ -443,15 +618,18 @@ export function AddPlayerModal({ onClose, onSubmit }: AddPlayerModalProps) {
 // 4. ADD TRANSACTION MODAL
 interface AddTransactionModalProps {
   onClose: () => void;
-  onSubmit: (transaction: Omit<Transaction, 'id' | 'date'> & { chargePlayers?: boolean }) => void;
+  onSubmit: (transaction: Omit<Transaction, 'id'> & { chargePlayers?: boolean }) => void;
 }
 
 export function AddTransactionModal({ onClose, onSubmit }: AddTransactionModalProps) {
+  const today = new Date();
+  const todayStr = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState<'RECEITA' | 'DESPESA'>('RECEITA');
   const [expenseType, setExpenseType] = useState<ExpenseCategory>('Lavagem de uniforme');
   const [chargePlayers, setChargePlayers] = useState(false);
-  const [amount, setAmount] = useState<number>(150);
+  const [amount, setAmount] = useState<number>(70);
+  const [transDate, setTransDate] = useState(todayStr);
 
   const expenseCategories: ExpenseCategory[] = [
     'Lavagem de uniforme',
@@ -471,6 +649,7 @@ export function AddTransactionModal({ onClose, onSubmit }: AddTransactionModalPr
       description,
       category,
       amount,
+      date: transDate,
       expenseType: category === 'DESPESA' ? expenseType : undefined,
       chargedToPlayers: category === 'DESPESA' && expenseType === 'Compra de uniforme' ? chargePlayers : undefined,
       chargePlayers: category === 'DESPESA' && expenseType === 'Compra de uniforme' ? chargePlayers : undefined
@@ -488,6 +667,18 @@ export function AddTransactionModal({ onClose, onSubmit }: AddTransactionModalPr
             placeholder="Ex: Mensalidade de Junho ou Lavagem de Colete"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
+            className="w-full px-4 py-2 bg-surface-container-low border border-outline-variant/20 rounded-lg outline-none focus:ring-2 focus:ring-primary font-medium"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="font-bold text-on-surface">Data (DD/MM/AAAA)</label>
+          <input
+            type="text"
+            required
+            placeholder="Ex: 15/06/2026"
+            value={transDate}
+            onChange={(e) => setTransDate(e.target.value)}
             className="w-full px-4 py-2 bg-surface-container-low border border-outline-variant/20 rounded-lg outline-none focus:ring-2 focus:ring-primary font-medium"
           />
         </div>
@@ -591,6 +782,11 @@ interface PlayerDetailsModalProps {
 }
 
 export function PlayerDetailsModal({ player, onClose, onUpdatePlayer, session }: PlayerDetailsModalProps) {
+  const [editingName, setEditingName] = useState(player.name);
+  const [editingPosition, setEditingPosition] = useState(player.position);
+  const [editingNumber, setEditingNumber] = useState(player.number);
+  const [editingSquad, setEditingSquad] = useState(player.squad);
+  const [editingAge, setEditingAge] = useState(player.age);
   const [condition, setCondition] = useState(player.condition);
   const [isInjured, setIsInjured] = useState(player.isInjured);
   const [injuryNote, setInjuryNote] = useState(player.injuryNote || 'Est. 15 dias');
@@ -666,6 +862,11 @@ export function PlayerDetailsModal({ player, onClose, onUpdatePlayer, session }:
 
   const handleApplyChanges = () => {
     onUpdatePlayer(player.id, {
+      name: editingName,
+      position: editingPosition,
+      number: editingNumber,
+      squad: editingSquad,
+      age: editingAge,
       condition,
       isInjured,
       injuryNote: isInjured ? injuryNote : undefined,
@@ -764,6 +965,78 @@ export function PlayerDetailsModal({ player, onClose, onUpdatePlayer, session }:
             <p className="text-[10px] text-zinc-400 font-semibold text-center max-w-xs">
               Posicione o rosto do atleta no círculo verde e clique em Capturar.
             </p>
+          </div>
+        )}
+
+        {/* Admin editable fields: nome, posição, número, categoria, idade */}
+        {session?.role === 'admin' && (
+          <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 space-y-4 animate-in fade-in duration-200">
+            <div className="flex items-center gap-2">
+              <Star className="w-5 h-5 text-primary" />
+              <p className="font-bold text-on-surface">Dados do Atleta (Admin)</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="font-bold text-on-surface">Nome</label>
+              <input
+                type="text"
+                value={editingName}
+                onChange={e => setEditingName(e.target.value)}
+                className="w-full px-4 py-2 bg-white border border-outline-variant/20 rounded-lg outline-none focus:ring-2 focus:ring-primary font-medium"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="font-bold text-on-surface">Posição</label>
+                <select
+                  value={editingPosition}
+                  onChange={e => setEditingPosition(e.target.value as PlayerPosition)}
+                  className="w-full px-3 py-2 bg-white border border-outline-variant/20 rounded-lg font-medium outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="Goleiro">Goleiro</option>
+                  <option value="Defensor">Defensor</option>
+                  <option value="Meio-Campo">Meio-Campo</option>
+                  <option value="Atacante">Atacante</option>
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="font-bold text-on-surface">Nº Camisa</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={99}
+                  value={editingNumber}
+                  onChange={e => setEditingNumber(Number(e.target.value))}
+                  className="w-full px-4 py-2 bg-white border border-outline-variant/20 rounded-lg font-medium outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="font-bold text-on-surface">Categoria</label>
+                <select
+                  value={editingSquad}
+                  onChange={e => setEditingSquad(e.target.value as SquadCategory)}
+                  className="w-full px-3 py-2 bg-white border border-outline-variant/20 rounded-lg font-medium outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="Master">Master</option>
+                  <option value="Veterano/Esporte">Veterano/Esporte</option>
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="font-bold text-on-surface">Idade</label>
+                <input
+                  type="number"
+                  min={15}
+                  max={60}
+                  value={editingAge}
+                  onChange={e => setEditingAge(Number(e.target.value))}
+                  className="w-full px-4 py-2 bg-white border border-outline-variant/20 rounded-lg font-medium outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+            </div>
           </div>
         )}
 

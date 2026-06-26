@@ -41,6 +41,7 @@ interface FinanceViewProps {
   onAddTransaction: (transaction: Omit<Transaction, 'id' | 'date'> & { chargePlayers?: boolean }) => void;
   onPayLateFee: (memberId: string, amount: number) => void;
   onOpenNewTransaction: () => void;
+  onGenerateMonthlyFee?: () => void;
   session: { role: 'admin' | 'player'; playerId?: string } | null;
   showToast?: (message: string, type: 'success' | 'info' | 'error') => void;
 }
@@ -52,6 +53,7 @@ export default function FinanceView({
   onAddTransaction,
   onPayLateFee,
   onOpenNewTransaction,
+  onGenerateMonthlyFee,
   session,
   showToast
 }: FinanceViewProps) {
@@ -83,11 +85,11 @@ export default function FinanceView({
   // Dynamic Board Costs Breakdown
   const getExpensesBreakdown = () => {
     const categories: Record<ExpenseCategory, number> = {
-      'Lavagem de uniforme': 80,
-      'Aluguel de campo': 250,
-      'Compra de medicamentos': 65,
-      'Compra de uniforme': 600,
-      'Despesas extras': 320,
+      'Lavagem de uniforme': 0,
+      'Aluguel de campo': 0,
+      'Compra de medicamentos': 0,
+      'Compra de uniforme': 0,
+      'Despesas extras': 0,
       'Arbitragem': 0,
       'Água': 0,
       'Marketing': 0,
@@ -624,6 +626,15 @@ export default function FinanceView({
                 >
                   <Plus className="w-4 h-4" />
                   Registrar Lançamento
+                </button>
+              )}
+              {session?.role !== 'player' && onGenerateMonthlyFee && (
+                <button
+                  onClick={onGenerateMonthlyFee}
+                  className="bg-emerald-600 text-white px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-1.5 hover:shadow-md active:scale-95 transition-all cursor-pointer"
+                >
+                  <Receipt className="w-4 h-4" />
+                  Gerar Mensalidade R$70
                 </button>
               )}
               

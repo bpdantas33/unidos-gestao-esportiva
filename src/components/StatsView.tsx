@@ -26,10 +26,10 @@ export default function StatsView({
   // Filter based on tableFilter (Geral, Casa, Fora)
   const displayMatches = finishedMatches.filter(m => {
     if (tableFilter === 'Casa') {
-      return m.homeTeam === 'Unidos';
+      return m.homeTeam .includes('Unidos');
     }
     if (tableFilter === 'Fora') {
-      return m.awayTeam === 'Unidos';
+      return m.awayTeam .includes('Unidos');
     }
     return true; // Geral
   });
@@ -44,7 +44,7 @@ export default function StatsView({
   displayMatches.forEach(m => {
     const homeScore = m.homeScore ?? 0;
     const awayScore = m.awayScore ?? 0;
-    const isHome = m.homeTeam === 'Unidos';
+    const isHome = m.homeTeam .includes('Unidos');
     
     const teamScore = isHome ? homeScore : awayScore;
     const opponentScore = isHome ? awayScore : homeScore;
@@ -81,10 +81,10 @@ export default function StatsView({
   } = {};
 
   finishedMatches.forEach(m => {
-    const opponent = m.homeTeam === 'Unidos' ? m.awayTeam : m.homeTeam;
+    const opponent = m.homeTeam .includes('Unidos') ? m.awayTeam : m.homeTeam;
     const homeScore = m.homeScore ?? 0;
     const awayScore = m.awayScore ?? 0;
-    const isHome = m.homeTeam === 'Unidos';
+    const isHome = m.homeTeam .includes('Unidos');
     
     const teamScore = isHome ? homeScore : awayScore;
     const opponentScore = isHome ? awayScore : homeScore;

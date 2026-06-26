@@ -297,7 +297,12 @@ export default function CalendarView({
               return (
                 <div
                   key={match.id}
-                  className="bg-white rounded-xl border border-outline-variant/30 shadow-md hover:border-secondary transition-all flex flex-col overflow-hidden"
+                  className={`bg-white rounded-xl border border-outline-variant/30 shadow-md hover:border-secondary transition-all flex flex-col overflow-hidden ${session?.role === 'admin' && onMatchClick ? 'cursor-pointer' : ''}`}
+                  onClick={() => {
+                    if (session?.role === 'admin' && onMatchClick) {
+                      onMatchClick(match);
+                    }
+                  }}
                 >
                   <div className="p-5 flex flex-col md:flex-row items-center gap-6">
                     {/* Left Date Column */}
@@ -573,9 +578,9 @@ export default function CalendarView({
                       </td>
                       <td className="p-4">
                         <div className="flex items-center gap-2 text-sm font-medium">
-                          <span className={match.homeTeam === 'Unidos' ? 'font-bold text-primary' : 'text-on-surface'}>{match.homeTeam}</span>
+                          <span className={match.homeTeam .includes('Unidos') ? 'font-bold text-primary' : 'text-on-surface'}>{match.homeTeam}</span>
                           <span className="text-outline-variant text-xs">vs</span>
-                          <span className={match.awayTeam === 'Unidos' ? 'font-bold text-primary' : 'text-on-surface'}>{match.awayTeam}</span>
+                          <span className={match.awayTeam .includes('Unidos') ? 'font-bold text-primary' : 'text-on-surface'}>{match.awayTeam}</span>
                         </div>
                       </td>
                       <td className="p-4 text-center">
