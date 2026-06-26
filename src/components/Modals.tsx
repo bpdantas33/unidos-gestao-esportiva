@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Check, Dumbbell, Calendar, Users, DollarSign, Star, AlertTriangle, RefreshCw, MessageSquare, Camera, Upload, Key } from 'lucide-react';
 import { Player, PlayerPosition, Match, Transaction, ExpenseCategory, SquadCategory } from '../types';
 import { UNIDOS_LOGO, TITAN_FC_LOGO, IBERIA_LOGO, MNT_LOGO, CTY_LOGO, EGL_LOGO } from '../data/initialData';
+import { hashPin } from '../lib/utils';
 
 interface ModalWrapperProps {
   title: string;
@@ -778,10 +779,11 @@ interface PlayerDetailsModalProps {
   player: Player;
   onClose: () => void;
   onUpdatePlayer: (id: string, updates: Partial<Player>) => void;
+  adminPassword?: string;
   session: { role: 'admin' | 'player'; playerId?: string } | null;
 }
 
-export function PlayerDetailsModal({ player, onClose, onUpdatePlayer, session }: PlayerDetailsModalProps) {
+export function PlayerDetailsModal({ player, onClose, onUpdatePlayer, adminPassword, session }: PlayerDetailsModalProps) {
   const [editingName, setEditingName] = useState(player.name);
   const [editingPosition, setEditingPosition] = useState(player.position);
   const [editingNumber, setEditingNumber] = useState(player.number);
@@ -1064,13 +1066,22 @@ export function PlayerDetailsModal({ player, onClose, onUpdatePlayer, session }:
               {player.pin && (
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={async () => {
+                    const masterPwd = prompt('Digite a senha master para confirmar o reset do PIN:');
+                    if (!masterPwd) return;
+                    if (!adminPassword) {
+                      alert('Erro: senha master não carregada.');
+                      return;
+                    }
+                    const hashedInput = await hashPin(masterPwd);
+                    if (hashedInput !== adminPassword) {
+                      alert('Senha master incorreta. Operação cancelada.');
+                      return;
+                    }
                     if (confirm(`Deseja mesmo resetar o PIN de ${player.name}? Um novo PIN aleatório será gerado.`)) {
                       const newPin = String(Math.floor(100000 + Math.random() * 900000));
-                      crypto.subtle.digest('SHA-256', new TextEncoder().encode(newPin)).then(hash => {
-                        const hashedPin = Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
-                        onUpdatePlayer(player.id, { pin: hashedPin });
-                      });
+                      const hashedPin = await hashPin(newPin);
+                      onUpdatePlayer(player.id, { pin: hashedPin });
                       alert(`PIN de ${player.name} resetado! Novo PIN: ${newPin}. Anote e entregue ao atleta.`);
                       onClose();
                     }

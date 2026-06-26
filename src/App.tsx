@@ -933,6 +933,7 @@ export default function App() {
               setSelectedPlayer(null);
             }}
             onUpdatePlayer={handleUpdatePlayerDetails}
+            adminPassword={adminPassword}
             session={session}
           />
         )}
@@ -950,6 +951,7 @@ export default function App() {
 
         {activeModal === 'adminSettings' && (
           <AdminSettingsModal
+            adminPassword={adminPassword}
             onChangePassword={handleChangeAdminPassword}
             onClose={() => setActiveModal(null)}
           />
@@ -959,10 +961,12 @@ export default function App() {
   );
 }
 
-function AdminSettingsModal({ onChangePassword, onClose }: {
+function AdminSettingsModal({ adminPassword, onChangePassword, onClose }: {
+  adminPassword: string;
   onChangePassword: (newPwd: string) => Promise<void>;
   onClose: () => void;
 }) {
+  const [currentPwd, setCurrentPwd] = useState('');
   const [newPwd, setNewPwd] = useState('');
   const [confirmPwd, setConfirmPwd] = useState('');
   const [saving, setSaving] = useState(false);
@@ -971,6 +975,13 @@ function AdminSettingsModal({ onChangePassword, onClose }: {
     e.preventDefault();
     if (newPwd.length < 6) { alert('A senha deve ter pelo menos 6 caracteres.'); return; }
     if (newPwd !== confirmPwd) { alert('As senhas não coincidem.'); return; }
+
+    const hashedCurrent = await hashPin(currentPwd);
+    if (hashedCurrent !== adminPassword) {
+      alert('Senha atual incorreta.');
+      return;
+    }
+
     setSaving(true);
     await onChangePassword(newPwd);
     setSaving(false);
@@ -997,10 +1008,24 @@ function AdminSettingsModal({ onChangePassword, onClose }: {
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
             <label className="text-xs font-black text-primary uppercase tracking-wider block mb-1">
+              Senha Atual
+            </label>
+            <input
+              type="password"
+              value={currentPwd}
+              onChange={e => setCurrentPwd(e.target.value)}
+              placeholder="Digite a senha atual"
+              className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/40 rounded-xl text-sm font-bold text-primary outline-none focus:ring-2 focus:ring-secondary focus:border-transparent"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-black text-primary uppercase tracking-wider block mb-1">
               Nova Senha
             </label>
             <input
-              type="text"
+              type="password"
               value={newPwd}
               onChange={e => setNewPwd(e.target.value)}
               placeholder="Mínimo 6 caracteres"
@@ -1015,7 +1040,7 @@ function AdminSettingsModal({ onChangePassword, onClose }: {
               Confirmar Nova Senha
             </label>
             <input
-              type="text"
+              type="password"
               value={confirmPwd}
               onChange={e => setConfirmPwd(e.target.value)}
               placeholder="Repita a nova senha"
