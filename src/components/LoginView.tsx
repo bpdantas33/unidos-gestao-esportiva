@@ -118,7 +118,7 @@ export default function LoginView({ players, adminPassword, onLoginSuccess, onUp
     setSuccessMessage('');
 
     if (role === 'admin') {
-      if (adminLoginType === 'master') {
+      if (showMasterAccess && adminLoginType === 'master') {
         const hashedInput = await hashPin(pin);
         if (hashedInput === adminPassword) {
           onLoginSuccess({ role: 'admin' });
@@ -564,21 +564,25 @@ export default function LoginView({ players, adminPassword, onLoginSuccess, onUp
               <label className="text-xs font-black text-primary uppercase tracking-wider block">
                 {role === 'player'
                   ? 'Senha / Código PIN'
-                  : adminLoginType === 'master'
-                    ? 'Senha Geral da Diretoria'
-                    : 'Seu PIN Pessoal'}
+                  : !showMasterAccess
+                    ? 'Seu PIN Pessoal'
+                    : adminLoginType === 'master'
+                      ? 'Senha Geral da Diretoria'
+                      : 'Seu PIN Pessoal'}
               </label>
               <div className="relative">
                 <input
                   type="password"
-                  pattern={role === 'player' || adminLoginType === 'individual' ? "[0-9]*" : "[0-9a-zA-Z]*"}
-                  inputMode={role === 'player' || adminLoginType === 'individual' ? "numeric" : "text"}
+                  pattern={role === 'player' || !showMasterAccess || adminLoginType === 'individual' ? "[0-9]*" : "[0-9a-zA-Z]*"}
+                  inputMode={role === 'player' || !showMasterAccess || adminLoginType === 'individual' ? "numeric" : "text"}
                   placeholder={
                     role === 'player'
                       ? "Digite seu PIN"
-                      : adminLoginType === 'master'
-                        ? "Senha de acesso admin"
-                        : "Digite seu PIN pessoal"
+                      : !showMasterAccess
+                        ? "Digite seu PIN pessoal"
+                        : adminLoginType === 'master'
+                          ? "Senha de acesso admin"
+                          : "Digite seu PIN pessoal"
                   }
                   value={pin}
                   onChange={(e) => {
