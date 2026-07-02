@@ -16,8 +16,8 @@ import {
 } from './data/initialData';
 
 // Firebase
-import { getCollectionData, saveItem, deleteItem, saveCollectionData, getDocData, initAuth, db } from './lib/firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { saveItem, deleteItem, saveCollectionData, listenCollection, initAuth, db } from './lib/firebase';
+import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { formatCurrency, hashPin } from './lib/utils';
 
 // Sub-components
@@ -84,111 +84,195 @@ export default function App() {
     return String(Math.floor(100000 + Math.random() * 900000));
   }
 
-  // Sincronização inicial com o Firebase Firestore
+  // Sincronização em tempo real com Firebase Firestore via onSnapshot
+  // Com persistência offline, recargas do app leem do cache local (zero reads de servidor)
   useEffect(() => {
-    async function initFirebase() {
+    const unsubs: (() => void)[] = [];
+    const loaded = new Set<string>();
+
+    function onLoaded(name: string) {
+      loaded.add(name);
+      if (loaded.size >= 7) {
+        setFirebaseLoading(false);
+        setFirebaseStatus('connected');
+      }
+    }
+
+    // Timeout de segurança: após 10s libera o app com dados locais
+    const safetyTimeout = setTimeout(() => {
+      if (loaded.size < 7) {
+        setFirebaseLoading(false);
+        setFirebaseStatus('error');
+      }
+    }, 10000);
+
+    async function setup() {
       try {
         setFirebaseStatus('loading');
 
         // Autenticação anônima para Firestore
         await initAuth();
 
-        // 0. Carregar/Criar Config (admin password hasheada)
-        let config = await getDocData<{ id: string; adminPassword: string }>('config', 'app');
-        if (config) {
-          const storedPwd = config.adminPassword;
+        // 0. Config (admin password) — ouvinte em tempo real
+        unsubs.push(onSnapshot(doc(db, 'config', 'app'), async (snap) => {
+          if (!snap.exists()) {
+            setAdminPassword('');
+            localStorage.removeItem('unidos_admin_password');
+            onLoaded('config');
+            return;
+          }
+          const storedPwd = (snap.data() as { adminPassword: string }).adminPassword;
           if (storedPwd.length === 64 && /^[a-f0-9]+$/.test(storedPwd)) {
             setAdminPassword(storedPwd);
           } else {
             const hashed = await hashPin(storedPwd);
-            await setDoc(doc(db, 'config', 'app'), { adminPassword: hashed });
+            setDoc(doc(db, 'config', 'app'), { adminPassword: hashed }).catch(() => {});
             setAdminPassword(hashed);
           }
-        }
+          localStorage.setItem('unidos_admin_password', storedPwd);
+          onLoaded('config');
+        }, (err) => {
+          console.error("Config listener error:", err);
+          const localPwd = localStorage.getItem('unidos_admin_password');
+          if (localPwd) setAdminPassword(localPwd);
+          onLoaded('config');
+        }));
 
-        // 1. Carregar Jogadores
-        let fbPlayers = await getCollectionData<Player>('players');
-        if (fbPlayers.length === 0) {
-          const local = localStorage.getItem('unidos_players');
-          const dataToSave = local ? JSON.parse(local) : await Promise.all(initialPlayers.map(async p => ({
-            ...p,
-            pin: await hashPin(p.pin || generatePlayerPin())
-          })));
-          await saveCollectionData('players', dataToSave);
-          fbPlayers = dataToSave;
-        } else {
-          // Garantir que todo jogador tenha PIN (hash se for texto plano)
-          let needsUpdate = false;
-          fbPlayers = await Promise.all(fbPlayers.map(async p => {
-            if (!p.pin) {
-              needsUpdate = true;
-              return { ...p, pin: await hashPin(generatePlayerPin()) };
+        // 1. Jogadores — ouvinte em tempo real
+        unsubs.push(listenCollection<Player>('players', (rawData) => {
+          (async () => {
+            if (rawData.length === 0) {
+              const local = localStorage.getItem('unidos_players');
+              if (local) {
+                const parsed = JSON.parse(local) as Player[];
+                setPlayers(parsed);
+                saveCollectionData('players', parsed).catch(() => {});
+              } else {
+                const seed = await Promise.all(initialPlayers.map(async p => ({
+                  ...p,
+                  pin: await hashPin(p.pin || generatePlayerPin())
+                })));
+                setPlayers(seed);
+                localStorage.setItem('unidos_players', JSON.stringify(seed));
+                saveCollectionData('players', seed).catch(() => {});
+              }
+              onLoaded('players');
+              return;
             }
-            if (p.pin.length !== 64 || !/^[a-f0-9]+$/.test(p.pin)) {
-              needsUpdate = true;
-              return { ...p, pin: await hashPin(p.pin) };
+
+            let needsUpdate = false;
+            const processed: Player[] = [];
+            for (const p of rawData) {
+              if (!p.pin) {
+                needsUpdate = true;
+                processed.push({ ...p, pin: await hashPin(generatePlayerPin()) });
+              } else if (p.pin.length !== 64 || !/^[a-f0-9]+$/.test(p.pin)) {
+                needsUpdate = true;
+                processed.push({ ...p, pin: await hashPin(p.pin) });
+              } else {
+                processed.push(p);
+              }
             }
-            return p;
-          }));
-          if (needsUpdate) {
-            await saveCollectionData('players', fbPlayers);
+            if (needsUpdate) {
+              saveCollectionData('players', processed).catch(() => {});
+            }
+            setPlayers(processed);
+            localStorage.setItem('unidos_players', JSON.stringify(processed));
+            onLoaded('players');
+          })();
+        }));
+
+        // 2. Partidas — ouvinte em tempo real
+        unsubs.push(listenCollection<Match>('matches', (data) => {
+          if (data.length === 0) {
+            const local = localStorage.getItem('unidos_matches');
+            if (local) {
+              const parsed = JSON.parse(local) as Match[];
+              setMatches(parsed);
+              saveCollectionData('matches', parsed).catch(() => {});
+            } else {
+              setMatches(initialMatches);
+              saveCollectionData('matches', initialMatches).catch(() => {});
+            }
+            onLoaded('matches');
+            return;
           }
-        }
-        setPlayers(fbPlayers);
+          setMatches(data);
+          localStorage.setItem('unidos_matches', JSON.stringify(data));
+          onLoaded('matches');
+        }));
 
-        // 2. Carregar Partidas
-        let fbMatches = await getCollectionData<Match>('matches');
-        if (fbMatches.length === 0) {
-          const local = localStorage.getItem('unidos_matches');
-          const dataToSave = local ? JSON.parse(local) : initialMatches;
-          await saveCollectionData('matches', dataToSave);
-          fbMatches = dataToSave;
-        }
-        setMatches(fbMatches);
+        // 3. Transações — ouvinte em tempo real (limit 50 registros, nunca re-popular)
+        unsubs.push(listenCollection<Transaction>('transactions', (data) => {
+          if (data.length === 0) {
+            setTransactions([]);
+            localStorage.removeItem('unidos_transactions');
+            onLoaded('transactions');
+            return;
+          }
+          setTransactions(data);
+          localStorage.setItem('unidos_transactions', JSON.stringify(data));
+          onLoaded('transactions');
+        }, { orderByField: 'date', limitCount: 50 }));
 
-        // 3. Carregar Transações (nunca re-popular do localStorage)
-        let fbTransactions = await getCollectionData<Transaction>('transactions');
-        if (fbTransactions.length === 0) {
-          fbTransactions = [];
-        }
-        setTransactions(fbTransactions);
+        // 4. Inadimplentes — ouvinte em tempo real (nunca re-popular)
+        unsubs.push(listenCollection<UnpaidMember>('unpaidMembers', (data) => {
+          if (data.length === 0) {
+            setUnpaidMembers([]);
+            localStorage.removeItem('unidos_unpaid_members');
+            onLoaded('unpaidMembers');
+            return;
+          }
+          setUnpaidMembers(data.map(m => ({ ...m, isPaid: m.isPaid || false })));
+          localStorage.setItem('unidos_unpaid_members', JSON.stringify(data));
+          onLoaded('unpaidMembers');
+        }));
 
-        // 4. Carregar Inadimplentes (nunca re-popular do localStorage)
-        let fbUnpaid = await getCollectionData<UnpaidMember>('unpaidMembers');
-        if (fbUnpaid.length === 0) {
-          fbUnpaid = [];
-        }
-        setUnpaidMembers(fbUnpaid);
+        // 5. Classificação — ouvinte em tempo real
+        unsubs.push(listenCollection<TeamStandings>('standings', (data) => {
+          if (data.length === 0) {
+            const local = localStorage.getItem('unidos_standings');
+            if (local) {
+              const parsed = JSON.parse(local) as TeamStandings[];
+              setStandings(parsed);
+              saveCollectionData('standings', parsed).catch(() => {});
+            } else {
+              setStandings(initialStandings);
+              saveCollectionData('standings', initialStandings).catch(() => {});
+            }
+            onLoaded('standings');
+            return;
+          }
+          setStandings(data);
+          localStorage.setItem('unidos_standings', JSON.stringify(data));
+          onLoaded('standings');
+        }));
 
-        // 5. Carregar Classificação
-        let fbStandings = await getCollectionData<TeamStandings>('standings');
-        if (fbStandings.length === 0) {
-          const local = localStorage.getItem('unidos_standings');
-          const dataToSave = local ? JSON.parse(local) : initialStandings;
-          await saveCollectionData('standings', dataToSave);
-          fbStandings = dataToSave;
-        }
-        setStandings(fbStandings);
+        // 6. Logs de Treino — ouvinte em tempo real (limit 30 registros)
+        unsubs.push(listenCollection<TrainingLog>('trainingLogs', (data) => {
+          setTrainingLogs(data);
+          onLoaded('trainingLogs');
+        }, { orderByField: 'date', limitCount: 30 }));
 
-        // 6. Carregar Logs de Treino
-        let fbTrainingLogs = await getCollectionData<TrainingLog>('trainingLogs');
-        setTrainingLogs(fbTrainingLogs);
-
-        setFirebaseStatus('connected');
-        showToast("Conectado ao Firebase com sucesso!", "success");
       } catch (error) {
         console.error("Firebase connection failed:", error);
         setFirebaseStatus('error');
+        const localPwd = localStorage.getItem('unidos_admin_password');
+        if (localPwd) setAdminPassword(localPwd);
         showToast("Erro de conexão ao Firebase. Usando dados locais.", "error");
-      } finally {
         setFirebaseLoading(false);
       }
     }
 
-    initFirebase();
+    setup();
+
+    return () => {
+      clearTimeout(safetyTimeout);
+      unsubs.forEach(u => u());
+    };
   }, []);
 
-  // Save states to localStorage (as local backup)
+  // Save active tab and squad to localStorage
   useEffect(() => {
     localStorage.setItem('unidos_active_tab', activeTab);
   }, [activeTab]);
@@ -196,26 +280,6 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('unidos_current_squad', currentSquad);
   }, [currentSquad]);
-
-  useEffect(() => {
-    localStorage.setItem('unidos_players', JSON.stringify(players));
-  }, [players]);
-
-  useEffect(() => {
-    localStorage.setItem('unidos_matches', JSON.stringify(matches));
-  }, [matches]);
-
-  useEffect(() => {
-    localStorage.setItem('unidos_transactions', JSON.stringify(transactions));
-  }, [transactions]);
-
-  useEffect(() => {
-    localStorage.setItem('unidos_unpaid_members', JSON.stringify(unpaidMembers));
-  }, [unpaidMembers]);
-
-  useEffect(() => {
-    localStorage.setItem('unidos_standings', JSON.stringify(standings));
-  }, [standings]);
 
   // Reset search query on tab change
   useEffect(() => {

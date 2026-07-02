@@ -1,5 +1,19 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, getDocs, doc, writeBatch, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
+import {
+  getFirestore,
+  collection,
+  getDocs,
+  doc,
+  writeBatch,
+  setDoc,
+  deleteDoc,
+  getDoc,
+  enableIndexedDbPersistence,
+  onSnapshot,
+  query,
+  orderBy,
+  limit as firestoreLimit
+} from 'firebase/firestore';
 import { getAuth, signInAnonymously } from 'firebase/auth';
 
 const firebaseConfig = {
@@ -15,6 +29,15 @@ const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, "ai-studio-1aa8d619-5d39-49fe-a797-0b814fd6c276");
 export const auth = getAuth(app);
 
+// Ativar persistência offline: recargas do app leem do cache local (zero reads de servidor)
+enableIndexedDbPersistence(db).catch((err) => {
+  if (err.code === 'failed-precondition') {
+    console.warn('Firestore persistence: múltiplas abas abertas — apenas uma aba faz cache');
+  } else if (err.code === 'unimplemented') {
+    console.warn('Firestore persistence: navegador não suporta');
+  }
+});
+
 export async function initAuth(): Promise<void> {
   if (auth.currentUser) return;
   try {
@@ -25,6 +48,26 @@ export async function initAuth(): Promise<void> {
   } catch (e) {
     console.warn('Anonymous auth failed (Safari privacy mode?):', e);
   }
+}
+
+// Listeners em tempo real — substituem getCollectionData
+// Primeira carga lê do servidor; atualizações posteriores são delta-sync (0 reads extras)
+export function listenCollection<T>(
+  collectionName: string,
+  callback: (items: T[]) => void,
+  opts?: { orderByField?: string; limitCount?: number }
+): () => void {
+  const constraints: any[] = [];
+  if (opts?.orderByField) constraints.push(orderBy(opts.orderByField, 'desc'));
+  if (opts?.limitCount) constraints.push(firestoreLimit(opts.limitCount));
+  const ref = constraints.length > 0
+    ? query(collection(db, collectionName), ...constraints)
+    : collection(db, collectionName);
+  return onSnapshot(ref, (snapshot) => {
+    callback(snapshot.docs.map(d => ({ ...d.data(), id: d.id } as T)));
+  }, (error) => {
+    console.error(`Firebase listen error (${collectionName}):`, error);
+  });
 }
 
 export async function getCollectionData<T>(collectionName: string): Promise<T[]> {
