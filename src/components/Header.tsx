@@ -1,5 +1,4 @@
 import { Search, Bell, Settings, Users, Menu } from 'lucide-react';
-import { PROFILES } from '../data/initialData';
 import { SquadCategory, Player } from '../types';
 
 interface HeaderProps {
@@ -49,7 +48,7 @@ export default function Header({
       return {
         name: loggedPlayer?.name || 'Atleta Unidos',
         role: `Atleta #${loggedPlayer?.number || 10}`,
-        img: loggedPlayer?.image || PROFILES.treinador
+        img: loggedPlayer?.image || '/escudo-unidos.png'
       };
     }
 
@@ -57,14 +56,14 @@ export default function Header({
       return {
         name: 'Administrador',
         role: 'Diretoria Unidos',
-        img: PROFILES.diretor
+        img: '/escudo-unidos.png'
       };
     }
 
     return {
       name: 'Administrador',
       role: 'Diretoria Unidos',
-      img: PROFILES.diretor
+      img: '/escudo-unidos.png'
     };
   };
 
