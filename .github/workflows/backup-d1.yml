@@ -1,0 +1,43 @@
+name: Backup semanal D1
+
+on:
+  schedule:
+    # Segunda-feira 06:00 UTC = 03:00 BRT
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Exportar D1
+        run: npx --yes wrangler d1 export unidos-db --remote --output=backup.sql
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: 8d7f06650f406e3d027feae5ae5c3c67
+
+      - name: Compactar com data
+        run: |
+          STAMP=$(date -u +%Y%m%d-%H%M)
+          gzip -c backup.sql > "backup-d1-${STAMP}.sql.gz"
+          rm backup.sql
+          echo "FILE=backup-d1-${STAMP}.sql.gz" >> "$GITHUB_ENV"
+
+      - name: Publicar commit único na branch backups-d1
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan backups-d1
+          git rm -rf . --quiet
+          git add -f "$FILE"
+          git commit -m "backup D1 $(date -u +%Y-%m-%d)"
+          git push --force origin backups-d1
