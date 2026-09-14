@@ -1,6 +1,7 @@
 import { Search, Bell, Settings, Users, Menu } from 'lucide-react';
 import { PROFILES } from '../data/initialData';
 import { SquadCategory, Player } from '../types';
+import { playerImageUrl } from '../lib/utils';
 
 interface HeaderProps {
   activeTab: string;
@@ -39,7 +40,7 @@ export default function Header({
         return {
           name: loggedPlayer.name,
           role: `Diretoria (Atleta #${loggedPlayer.number})`,
-          img: loggedPlayer.image
+          img: playerImageUrl(loggedPlayer.name, loggedPlayer.image)
         };
       }
     }
@@ -49,7 +50,7 @@ export default function Header({
       return {
         name: loggedPlayer?.name || 'Atleta Unidos',
         role: `Atleta #${loggedPlayer?.number || 10}`,
-        img: loggedPlayer?.image || PROFILES.treinador
+        img: playerImageUrl(loggedPlayer?.name || 'Atleta Unidos', loggedPlayer?.image) || PROFILES.treinador
       };
     }
 
@@ -135,9 +136,21 @@ export default function Header({
         <div className="flex items-center gap-2">
           <h1 className="text-xl font-bold text-primary tracking-tight hidden lg:block">{getPageTitle()}</h1>
           {firebaseStatus === 'connected' && (
-            <span className="hidden xl:flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 text-emerald-700 text-[10px] font-extrabold rounded-full border border-emerald-500/20 select-none shrink-0">
+            <span className="flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 text-emerald-700 text-[10px] font-extrabold rounded-full border border-emerald-500/20 select-none shrink-0">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
               Nuvem Sincronizada
+            </span>
+          )}
+          {firebaseStatus === 'error' && (
+            <span className="flex items-center gap-1 px-2 py-0.5 bg-rose-500/10 text-rose-700 text-[10px] font-extrabold rounded-full border border-rose-500/20 select-none shrink-0">
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+              Offline
+            </span>
+          )}
+          {firebaseStatus === 'loading' && (
+            <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 text-amber-700 text-[10px] font-extrabold rounded-full border border-amber-500/20 select-none shrink-0">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+              Conectando...
             </span>
           )}
         </div>

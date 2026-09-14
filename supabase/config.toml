@@ -1,0 +1,48 @@
+[auth]
+enable_anonymous_sign_ins = true
+
+[functions.validate-auth]
+enabled = true
+verify_jwt = false
+import_map = "./functions/validate-auth/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/validate-auth/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/validate-auth/*.html" ]
+
+[functions.change-pin]
+enabled = true
+verify_jwt = false
+import_map = "./functions/change-pin/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/change-pin/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/change-pin/*.html" ]
+
+[functions.change-admin-password]
+enabled = true
+verify_jwt = false
+import_map = "./functions/change-admin-password/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/change-admin-password/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/change-admin-password/*.html" ]
+
+[functions.write-data]
+enabled = true
+verify_jwt = false
+import_map = "./functions/write-data/deno.json"
+entrypoint = "./functions/write-data/index.ts"
+
+[functions.confirm-attendance]
+enabled = true
+verify_jwt = false
+import_map = "./functions/confirm-attendance/deno.json"
+entrypoint = "./functions/confirm-attendance/index.ts"
+

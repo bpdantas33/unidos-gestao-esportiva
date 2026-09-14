@@ -1,9 +1,19 @@
 # DECISIONS
 
+## 2026-09-14 — Fix INSERT OR REPLACE (apagava jogador/logo) + restauração Hulk e logo GE COLORADO
+- **Decisão**: Trocar `INSERT OR REPLACE` por `INSERT ... ON CONFLICT(id) DO UPDATE` no `upsert`/`upsertMany` (`functions/api/db.js`; espelho em `api/db.js`) + `handleUpdatePlayerDetails` (`src/App.tsx:871`) envia objeto completo mesclado. Restaurar Hulk (id 23, zerado pelo reset de PIN do Andrey) e logo do GE COLORADO (jogo Master 19/09 id 65, zerado por edição de jogo) a partir do backup de 01/09 (ou export mais novo da branch `backups-d1`), com PIN temporário novo para o Hulk.
+- **Motivo**: `REPLACE` apaga a linha e reinsere só as colunas enviadas — reset de PIN (só `{pin, mustChangePin}`) zerou nome/número/etc. do Hulk (live: `name:null`); edição de jogo zerou `homelogo` do GE COLORADO (backup 01/09 tinha `data:`, live está `""`) porque o proxy remove `/api/logo` antes de salvar.
+- **Status**: vigente (concluído em 14/09 — deploy prod `7697ef73`, merge testado no ar)
+
+## 2026-09-14 — "Jogo Entre Nós" fora de todas as estatísticas
+- **Decisão**: Helper `isIntraSquadMatch()` em `src/lib/utils.ts` + filtro em `StatsView finishedMatches`, no recálculo de `goals`/`cleanSheets` (`App.tsx`), e nas frequências (`DashboardView`, `SquadView`).
+- **Motivo**: Usuário pediu que o rachão interno não conte para estatísticas; escopo escolhido: tudo, incluindo % presença.
+- **Status**: vigente (concluído em 14/09 — deploy prod `7697ef73`, merge testado no ar)
+
 ## 2026-09-14 — Backup automático semanal do D1 (GitHub Action)
 - **Decisão**: Workflow `.github/workflows/backup-d1.yml` — toda segunda 03:00 BRT (cron) + botão manual (`workflow_dispatch`): `wrangler d1 export unidos-db --remote` → gzip com data → force-push de commit único na branch `backups-d1`. Secret necessário: `CLOUDFLARE_API_TOKEN` (template API token: Account → D1 → Read). Account ID fixo no workflow (não é segredo).
 - **Motivo**: Verificado que nunca existiu rotina de backup (0 workflows no repo, deploy.ps1 só build+deploy, Pages sem cron). Após o susto dos dados de setembro, backup semanal automático impede nova perda total.
-- **Status**: vigente (pendente: push bloqueado — credencial local sem scope `workflow` do GitHub; commit pronto na branch local `backup-d1`, usuário precisa subir)
+- **Status**: vigente e funcionando — testado 14/09: run verde, backup `backup-d1-20260914-1252.sql.gz` (9,6MB) publicado na branch `backups-d1`. Token CF `backup-d1-github` com D1 Edit (export exige escrita). Roda toda segunda 03:00 + manual.
 
 ## 2026-09-14 — Migração definitiva Neon → Cloudflare D1 + R2 (100% grátis)
 - **Decisão**: Aposentar o Neon (cota 5GB/mês estourada 2x, erro 402 em 8/8 tabelas, app fora do ar) e migrar para **D1** (dados) + **R2** (fotos), tudo no grátis Cloudflare. Base = `backup-sa-east-1-20260901.jsonl` + zerar financeiro de 02/09 reaplicado. Frontend intacto (mesmo contrato `/api/db`). Ordem: D1 núcleo (config/players sem image/matches/confirmations) → Functions → deploy liberando confirmação → R2 + fotos → tabelas restantes → remover secrets PG.

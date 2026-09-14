@@ -1,27 +1,47 @@
 import { useState } from 'react';
-import { Award, Plus, Flame, Swords } from 'lucide-react';
+import { Award, Flame, Swords, Calendar as CalendarIcon } from 'lucide-react';
 import { Player, Match } from '../types';
+import { playerImageUrl, parseMatchDate, isIntraSquadMatch } from '../lib/utils';
+import { getStatsStartDate, setStatsStartDate } from '../lib/supabase';
 
 interface StatsViewProps {
   players: Player[];
   matches: Match[];
-  onAddGoalToScorer: (playerId: string) => void;
   session: { role: 'admin' | 'player'; playerId?: string } | null;
 }
 
 export default function StatsView({
   players,
   matches,
-  onAddGoalToScorer,
   session
 }: StatsViewProps) {
   const [tableFilter, setTableFilter] = useState<'Geral' | 'Casa' | 'Fora'>('Geral');
 
-  // Filter finished matches
-  const finishedMatches = matches.filter(m => 
-    (m.homeScore !== undefined && m.awayScore !== undefined) ||
-    ['VITÓRIA', 'EMPATE', 'DERROTA'].includes(m.status)
-  );
+  // Stats reset state
+  const [statsStartDate, setStatsStart] = useState(getStatsStartDate());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [dateInput, setDateInput] = useState(statsStartDate);
+
+  const handleDateChange = () => {
+    setStatsStartDate(dateInput);
+    setStatsStart(dateInput);
+    setShowDatePicker(false);
+  };
+
+  const parseDate = (dateStr: string) => {
+    const [d, m, y] = dateStr.split('/').map(Number);
+    return new Date(y, m - 1, d);
+  };
+
+  // Filter finished matches — only count from statsStartDate onwards (rachão interno nunca conta)
+  const finishedMatches = matches.filter(m => {
+    if (!m.date) return false;
+    if (isIntraSquadMatch(m)) return false;
+    const md = parseMatchDate(m.date);
+    return md ? md >= parseDate(statsStartDate) &&
+      ((m.homeScore != null && m.awayScore != null) ||
+      ['VITÓRIA', 'EMPATE', 'DERROTA'].includes(m.status)) : false;
+  });
 
   // Filter based on tableFilter (Geral, Casa, Fora)
   const displayMatches = finishedMatches.filter(m => {
@@ -120,10 +140,19 @@ export default function StatsView({
     };
   }).sort((a, b) => b.played - a.played); // Sort by most played
 
-  // Sorted list of scorers dynamically calculated from our live players state
+  // Aggregate goals from finished matches only
+  const goalMap: Record<string, number> = {};
+  finishedMatches.forEach(m => {
+    if (m.goalScorers) {
+      m.goalScorers.forEach(gs => {
+        goalMap[gs.playerId] = (goalMap[gs.playerId] || 0) + gs.goals;
+      });
+    }
+  });
   const scorersList = [...players]
-    .filter(p => p.goals !== undefined && p.goals > 0)
-    .sort((a, b) => (b.goals || 0) - (a.goals || 0));
+    .filter(p => (goalMap[p.id] || 0) > 0)
+    .map(p => ({ ...p, goals: goalMap[p.id] || 0 }))
+    .sort((a, b) => b.goals - a.goals);
 
   // Dynamic Leaders
   const cleanSheetsLeader = [...players]
@@ -149,9 +178,39 @@ export default function StatsView({
                 Aproveitamento de Amistosos
               </h3>
               <p className="text-xs text-on-surface-variant font-medium mt-0.5">Métricas de desempenho e histórico contra adversários em tempo real</p>
+              <p className="text-[10px] text-secondary font-bold mt-0.5">Desde {statsStartDate}</p>
             </div>
-            {/* Filter buttons */}
-            <div className="flex gap-1.5 bg-surface-container rounded-full p-1 border border-outline-variant/15 w-fit">
+            <div className="flex items-center gap-2">
+              {/* Admin: Reset / Date controls */}
+              {session?.role !== 'player' && (
+                <div className="relative flex items-center gap-1">
+                  {showDatePicker ? (
+                    <div className="flex items-center gap-1 bg-white rounded-lg border border-outline-variant/30 p-1 shadow-lg">
+                      <input
+                        type="text"
+                        value={dateInput}
+                        onChange={e => setDateInput(e.target.value)}
+                        className="w-24 px-2 py-1 text-xs font-medium bg-surface-container-low rounded outline-none"
+                        placeholder="DD/MM/AAAA"
+                        onKeyDown={e => { if (e.key === 'Enter') handleDateChange(); }}
+                      />
+                      <button onClick={handleDateChange} className="px-2 py-1 text-xs font-bold bg-primary text-white rounded">OK</button>
+                      <button onClick={() => setShowDatePicker(false)} className="px-2 py-1 text-xs font-bold text-on-surface-variant">X</button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setShowDatePicker(true)}
+                      className="px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-on-surface-variant hover:bg-surface-container transition-colors flex items-center gap-1"
+                      title="Ajustar data de corte das estatísticas"
+                    >
+                      <CalendarIcon className="w-3.5 h-3.5" />
+                      Data
+                    </button>
+                  )}
+
+                </div>
+              )}
+              {/* Filter buttons */}
               {(['Geral', 'Casa', 'Fora'] as const).map((filter) => (
                 <button
                   key={filter}
@@ -288,8 +347,9 @@ export default function StatsView({
                       <img
                         alt={scorer.name}
                         className="w-full h-full object-cover"
-                        src={scorer.image}
+                        src={playerImageUrl(scorer.name, scorer.image)}
                         referrerPolicy="no-referrer"
+                        onError={(e) => { e.currentTarget.src = playerImageUrl(scorer.name, ''); }}
                       />
                     </div>
                     <div>
@@ -301,15 +361,6 @@ export default function StatsView({
                   {/* Add Goal dynamic button */}
                   <div className="flex items-center gap-2.5">
                     <span className="font-black text-lg text-primary">{scorer.goals} Gols</span>
-                    {session?.role !== 'player' && (
-                      <button
-                        onClick={() => onAddGoalToScorer(scorer.id)}
-                        title="Registrar gol para este jogador"
-                        className="w-6 h-6 rounded-full bg-secondary text-white hover:bg-secondary-container hover:scale-110 active:scale-95 transition-all flex items-center justify-center font-bold cursor-pointer"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                      </button>
-                    )}
                   </div>
                 </div>
               ))}
@@ -333,8 +384,9 @@ export default function StatsView({
                 <img
                   alt={cleanSheetsLeader.name}
                   className="w-full h-full object-cover"
-                  src={cleanSheetsLeader.image}
+                  src={playerImageUrl(cleanSheetsLeader.name, cleanSheetsLeader.image)}
                   referrerPolicy="no-referrer"
+                  onError={(e) => { e.currentTarget.src = playerImageUrl(cleanSheetsLeader.name, ''); }}
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-primary text-white font-bold text-lg">
@@ -359,8 +411,9 @@ export default function StatsView({
                 <img
                   alt={tackleLeader.name}
                   className="w-full h-full object-cover"
-                  src={tackleLeader.image}
+                  src={playerImageUrl(tackleLeader.name, tackleLeader.image)}
                   referrerPolicy="no-referrer"
+                  onError={(e) => { e.currentTarget.src = playerImageUrl(tackleLeader.name, ''); }}
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-primary text-white font-bold text-lg">

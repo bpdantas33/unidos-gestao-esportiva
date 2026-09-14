@@ -1,26 +1,27 @@
-import { useState } from 'react';
-import { 
-  ArrowUp, 
-  ArrowDown, 
-  Search, 
-  Download, 
-  Plus, 
-  Check, 
-  RefreshCw, 
-  AlertCircle, 
-  Sparkles, 
-  Shirt, 
-  Map, 
-  Activity, 
-  Sparkle, 
-  HelpCircle, 
+import { useState, useMemo } from 'react';
+import {
+  ArrowUp,
+  ArrowDown,
+  Search,
+  Download,
+  Plus,
+  Check,
+  RefreshCw,
+  AlertCircle,
+  Sparkles,
+  Shirt,
+  Map,
+  Activity,
+  Sparkle,
+  HelpCircle,
   Receipt,
   Bell,
   TrendingUp,
   Shield,
   Droplet,
   Megaphone,
-  Trash2
+  Trash2,
+  QrCode
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -33,7 +34,8 @@ import {
   Legend 
 } from 'recharts';
 import { Transaction, UnpaidMember, ExpenseCategory, Player } from '../types';
-import { formatCurrency } from '../lib/utils';
+import { formatCurrency, playerImageUrl } from '../lib/utils';
+import { PixPaymentModal } from './Modals';
 
 interface FinanceViewProps {
   transactions: Transaction[];
@@ -47,6 +49,10 @@ interface FinanceViewProps {
   onGenerateMonthlyFee?: () => void;
   session: { role: 'admin' | 'player'; playerId?: string } | null;
   showToast?: (message: string, type: 'success' | 'info' | 'error') => void;
+  pixKey?: string;
+  pixOwnerId?: string;
+  onPixPay?: (memberId: string) => void;
+  onPixConfirm?: (memberId: string) => void;
 }
 
 export default function FinanceView({
@@ -60,15 +66,40 @@ export default function FinanceView({
   onOpenNewTransaction,
   onGenerateMonthlyFee,
   session,
-  showToast
+  showToast,
+  pixKey = '',
+  pixOwnerId = '',
+  onPixPay,
+  onPixConfirm
 }: FinanceViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<'Todos' | 'RECEITA' | 'DESPESA'>('Todos');
   const [exporting, setExporting] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState<string>('');
+  const [pixTargetMember, setPixTargetMember] = useState<UnpaidMember | null>(null);
+
+  const availableMonths = useMemo(() => {
+    const months = new Set<string>();
+    transactions.filter(t => !t.cancelled).forEach(t => {
+      const [d, m, y] = t.date.split('/');
+      if (m && y) months.add(`${m}/${y}`);
+    });
+    return Array.from(months).sort((a, b) => {
+      const [m1, y1] = a.split('/');
+      const [m2, y2] = b.split('/');
+      return y1 !== y2 ? parseInt(y1) - parseInt(y2) : parseInt(m1) - parseInt(m2);
+    });
+  }, [transactions]);
+
+  const isInSelectedMonth = (date: string) => {
+    if (!selectedMonth) return true;
+    const [d, m, y] = date.split('/');
+    return `${m}/${y}` === selectedMonth;
+  };
 
   // Dynamic calculations based on active players and transactions
   const calculateFinance = () => {
-    const active = transactions.filter(t => !t.cancelled);
+    const active = transactions.filter(t => !t.cancelled && isInSelectedMonth(t.date));
     const monthlyRevenues = active
       .filter((t) => t.category === 'RECEITA')
       .reduce((acc, curr) => acc + curr.amount, 0);
@@ -104,7 +135,7 @@ export default function FinanceView({
 
     // Sum up custom transactions
     transactions
-      .filter((t) => !t.cancelled && t.category === 'DESPESA' && t.expenseType)
+      .filter((t) => !t.cancelled && t.category === 'DESPESA' && t.expenseType && isInSelectedMonth(t.date))
       .forEach((t) => {
         const type = t.expenseType as ExpenseCategory;
         if (categories[type] !== undefined) {
@@ -156,6 +187,7 @@ export default function FinanceView({
 
   // Filter transactions
   const filteredTransactions = transactions.filter((t) => {
+    if (!isInSelectedMonth(t.date)) return false;
     const matchesSearch = t.description.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = activeCategory === 'Todos' || t.category === activeCategory;
     return matchesSearch && matchesCategory;
@@ -320,9 +352,47 @@ export default function FinanceView({
     }
   };
 
+  const activeUnpaid = unpaidMembers.filter(m => {
+    if (m.cancelled) return false;
+    if (m.paymentStatus === 'paid' || m.isPaid) return false;
+    return true;
+  });
+
   return (
     <div className="space-y-8 select-none">
       
+      {/* Month filter */}
+      <div className="flex items-center gap-2 mb-2">
+        <label className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Mês:</label>
+        <select
+          value={selectedMonth}
+          onChange={(e) => setSelectedMonth(e.target.value)}
+          className="px-3 py-1.5 bg-white border border-outline-variant/20 rounded-lg text-xs font-bold text-on-surface outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+        >
+          <option value="">Todos os meses</option>
+          {availableMonths.map((m) => {
+            const [month, year] = m.split('/');
+            const monthNames: Record<string, string> = {
+              '01': 'Jan', '02': 'Fev', '03': 'Mar', '04': 'Abr', '05': 'Mai', '06': 'Jun',
+              '07': 'Jul', '08': 'Ago', '09': 'Set', '10': 'Out', '11': 'Nov', '12': 'Dez'
+            };
+            return (
+              <option key={m} value={m}>
+                {monthNames[month] || month}/{year}
+              </option>
+            );
+          })}
+        </select>
+        {selectedMonth && (
+          <button
+            onClick={() => setSelectedMonth('')}
+            className="text-[10px] text-on-surface-variant hover:text-primary font-bold underline transition-all cursor-pointer"
+          >
+            Limpar filtro
+          </button>
+        )}
+      </div>
+
       {/* Finance top stats overview */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         
@@ -527,10 +597,10 @@ export default function FinanceView({
           <div className="flex justify-between items-start mb-6 gap-2">
             <div>
               <h3 className="text-lg font-bold text-primary">Controle de Débitos ("Caixinha")</h3>
-              <p className="text-xs text-on-surface-variant font-medium mt-0.5">Membros com pendências pendentes</p>
+              <p className="text-xs text-on-surface-variant font-medium mt-0.5">{activeUnpaid.length} membro(s) com pendência</p>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
-              {unpaidMembers.some(m => !m.isPaid && !m.cancelled) && (
+              {activeUnpaid.length > 0 && (
                 <button
                   onClick={handleNotifyAll}
                   className="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1 active:scale-95 shadow-xs cursor-pointer"
@@ -547,14 +617,14 @@ export default function FinanceView({
           </div>
 
           <div className="space-y-4">
-            {unpaidMembers.length === 0 ? (
+            {activeUnpaid.length === 0 ? (
               <div className="text-center py-10 bg-surface-container-low rounded-lg border border-dashed border-outline-variant/20">
                 <Sparkles className="w-8 h-8 text-secondary mx-auto mb-2" />
                 <p className="text-xs text-on-surface font-semibold">Tudo em Dia!</p>
                 <p className="text-[10px] text-on-surface-variant mt-1">Nenhum atleta em débito</p>
               </div>
             ) : (
-              unpaidMembers.map((member) => {
+              activeUnpaid.map((member) => {
                 const isCancelled = member.cancelled;
                 return (
                 <div
@@ -562,9 +632,11 @@ export default function FinanceView({
                   className={`p-4 rounded-xl border transition-all flex flex-col justify-between gap-4 ${
                     isCancelled
                       ? 'bg-surface-container-low border-outline-variant/10 opacity-40'
-                      : member.isPaid
+                      : member.paymentStatus === 'paid' || member.isPaid
                         ? 'bg-primary/5 border-primary/25 opacity-70'
-                        : 'bg-surface-container-low border-outline-variant/10 hover:border-outline-variant/30'
+                        : member.paymentStatus === 'awaiting'
+                          ? 'bg-amber-50 border-amber-200'
+                          : 'bg-surface-container-low border-outline-variant/10 hover:border-outline-variant/30'
                   }`}
                 >
                   <div className="flex items-center gap-3">
@@ -572,8 +644,9 @@ export default function FinanceView({
                       <img
                         alt={member.name}
                         className="w-full h-full object-cover"
-                        src={member.image}
+                        src={playerImageUrl(member.name, member.image)}
                         referrerPolicy="no-referrer"
+                        onError={(e) => { e.currentTarget.src = playerImageUrl(member.name, ''); }}
                       />
                     </div>
                     <div>
@@ -582,7 +655,7 @@ export default function FinanceView({
                         <p className="text-[9px] text-error/60 font-extrabold uppercase mt-1">Removido</p>
                       ) : (
                         <p className="text-[9px] text-on-surface-variant font-extrabold uppercase mt-1">
-                          {member.isPaid ? 'PAGO' : 'PENDENTE'}: <span className={`font-black ${member.isPaid ? 'text-primary' : 'text-secondary'}`}>{member.reason || 'Mensalidade'}</span>
+                          {member.paymentStatus === 'paid' || member.isPaid ? 'PAGO' : member.paymentStatus === 'awaiting' ? 'AGUARDANDO CONFIRMAÇÃO' : 'PENDENTE'}: <span className={`font-black ${member.paymentStatus === 'paid' || member.isPaid ? 'text-primary' : member.paymentStatus === 'awaiting' ? 'text-amber-600' : 'text-secondary'}`}>{member.reason || 'Mensalidade'}</span>
                         </p>
                       )}
                     </div>
@@ -600,7 +673,7 @@ export default function FinanceView({
                       </span>
                     ) : session?.role === 'player' ? (
                       <div className="flex items-center gap-1.5">
-                        {!member.isPaid && (
+                        {member.paymentStatus !== 'paid' && !member.isPaid && (
                           <button
                             onClick={() => handleNotifyMember(member)}
                             className="p-1.5 text-amber-500 hover:text-amber-600 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-all active:scale-95 cursor-pointer flex items-center justify-center"
@@ -610,16 +683,16 @@ export default function FinanceView({
                           </button>
                         )}
                         <span className={`px-3 py-1.5 rounded-lg text-xs font-bold ${
-                          member.isPaid 
-                            ? 'bg-primary/10 text-primary border border-primary/20' 
+                          member.paymentStatus === 'paid' || member.isPaid
+                            ? 'bg-primary/10 text-primary border border-primary/20'
                             : 'bg-error/10 text-error border border-error/20'
                         }`}>
-                          {member.isPaid ? 'Pago! ✅' : 'Em Aberto ⚠️'}
+                          {member.paymentStatus === 'paid' || member.isPaid ? 'Pago! ✅' : 'Em Aberto ⚠️'}
                         </span>
                       </div>
                     ) : (
                       <div className="flex items-center gap-1.5">
-                        {!member.isPaid && (
+                        {member.paymentStatus !== 'paid' && !member.isPaid && (
                           <>
                             <button
                               onClick={() => handleNotifyMember(member)}
@@ -641,24 +714,41 @@ export default function FinanceView({
                             </button>
                           </>
                         )}
-                        <button
-                          onClick={() => !member.isPaid && onPayLateFee(member.id, member.amount)}
-                          disabled={member.isPaid}
-                          className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
-                            member.isPaid
-                              ? 'bg-primary text-white cursor-default shadow-none border border-transparent'
-                              : 'bg-secondary text-white hover:bg-secondary-container hover:shadow-md active:scale-95 border border-transparent'
-                          }`}
-                        >
-                          {member.isPaid ? (
-                            <>
+                        {member.paymentStatus === 'awaiting' ? (
+                          session?.playerId === pixOwnerId ? (
+                            <button
+                              onClick={() => onPixConfirm?.(member.id)}
+                              className="px-4 py-1.5 rounded-lg text-xs font-bold bg-amber-500 text-white hover:brightness-110 active:scale-95 shadow-md transition-all flex items-center gap-1 cursor-pointer border border-transparent"
+                            >
                               <Check className="w-3.5 h-3.5" />
-                              Pago!
-                            </>
+                              Confirmar
+                            </button>
                           ) : (
-                            'BAIXAR DÉBITO'
-                          )}
-                        </button>
+                            <span className="px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                              ⏳ Aguardando
+                            </span>
+                          )
+                        ) : member.paymentStatus === 'paid' || member.isPaid ? (
+                          <span className="px-4 py-1.5 rounded-lg text-xs font-bold bg-primary text-white flex items-center gap-1 cursor-default shadow-none border border-transparent">
+                            <Check className="w-3.5 h-3.5" />
+                            Pago!
+                          </span>
+                        ) : pixKey ? (
+                          <button
+                            onClick={() => setPixTargetMember(member)}
+                            className="px-4 py-1.5 rounded-lg text-xs font-bold bg-secondary text-white hover:bg-secondary-container hover:shadow-md active:scale-95 transition-all flex items-center gap-1 cursor-pointer border border-transparent"
+                          >
+                            <QrCode className="w-3.5 h-3.5" />
+                            Pagar via PIX
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => onPayLateFee(member.id, member.amount)}
+                            className="px-4 py-1.5 rounded-lg text-xs font-bold bg-secondary text-white hover:bg-secondary-container hover:shadow-md active:scale-95 transition-all flex items-center gap-1 cursor-pointer border border-transparent"
+                          >
+                            BAIXAR DÉBITO
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -839,6 +929,20 @@ export default function FinanceView({
         </section>
 
       </div>
+
+      {pixTargetMember && (
+        <PixPaymentModal
+          member={pixTargetMember}
+          pixKey={pixKey}
+          merchantName="UNIDOS FC"
+          merchantCity="SUZANO"
+          onConfirm={() => {
+            onPixPay?.(pixTargetMember.id);
+            setPixTargetMember(null);
+          }}
+          onClose={() => setPixTargetMember(null)}
+        />
+      )}
     </div>
   );
 }

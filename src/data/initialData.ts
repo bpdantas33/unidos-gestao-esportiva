@@ -10,9 +10,10 @@ export const TITAN_FC_LOGO = '';
 export const MAP_IMAGE = '';
 export const PROFILES = {};
 
-const DEFAULT_IMAGE = 'https://lh3.googleusercontent.com/aida-public/AB6AXuBF1LVhWUZnFla0LwkJo6umZHn7LA36eRpaoHz9UHXs9jiqP6p-jASZsi1BzPLo3wR5YPfoFwaZEw3N0QaYudZPxBZratlgK9sfdZgEtsLLysmNYHcjJrr8Rle1GoiIUfVRHgsZXcI0MnlBXnqtRCEurM5HpHOHv04lXddjXZBnfLY8-Vl9diIK24pRUP2syNZS6Oh3NqIiCBut-MG2La-hca-z7XZFn-smSuPHo8EIgv5BGZG76VQ6sJkur7FuhoYh3X48lL1I34GW';
+const DEFAULT_IMAGE = '';
+const DEFAULT_PIN_HASH = '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4'; // SHA-256("1234")
 
-function p(name: string, num: number, position: PlayerPosition, age: number, squad: SquadCategory, phone = ''): Player {
+function p(name: string, num: number, position: PlayerPosition, age: number, squad: SquadCategory, phone = '', extra: Partial<Player> = {}): Player {
   return {
     id: String(num),
     name,
@@ -24,28 +25,42 @@ function p(name: string, num: number, position: PlayerPosition, age: number, squ
     condition: 100,
     isInjured: false,
     games: 0,
+    pin: '',
     goals: position === 'Atacante' || position === 'Meio-Campo' ? 0 : undefined,
     tackles: position === 'Defensor' ? 0 : undefined,
     cleanSheets: position === 'Goleiro' ? 0 : undefined,
     image: DEFAULT_IMAGE,
     squad,
     phone,
+    ...extra,
   };
 }
+
+export const DIRECTOR_NAMES: ReadonlySet<string> = new Set([
+  'Lucas Aparecido Pedroso',
+  'Ailton da Silva Purificação (Puri)',
+  'Eduardo Tadashi Shiga',
+  'Renato Godoi Moreira',
+  'Bruno Pessoa Dantas',
+  'Ramon Pessoa Dantas',
+  'Humberto Fontana Neto (Alemão)',
+  'Marinho Puerta Junior',
+  'Andrey Vinicius Damasceno',
+]);
 
 export const initialPlayers: Player[] = [
   // Master
   p('Adilson dos Santos Sampaio', 1, 'Meio-Campo', 49, 'Master'),
-  p('Ailton da Silva Purificação (Puri)', 2, 'Meio-Campo', 53, 'Master'),
+  p('Ailton da Silva Purificação (Puri)', 2, 'Meio-Campo', 53, 'Master', '', { isBoardMember: true }),
   p('Antonio César Borin', 4, 'Defensor', 59, 'Master'),
-  p('Bruno Pessoa Dantas', 6, 'Atacante', 46, 'Master'),
+  p('Bruno Pessoa Dantas', 6, 'Atacante', 46, 'Master', '', { isBoardMember: true, number: 9 }),
   p('Eraldo Samuel Dasilva', 11, 'Goleiro', 37, 'Master'),
   p('Fabio Luiz Motta (Pinguim)', 14, 'Atacante', 44, 'Master'),
   p('Fabricio Ciconi Tsutsui', 15, 'Meio-Campo', 47, 'Master'),
   p('Gledson Brito (Guegué)', 17, 'Atacante', 48, 'Master'),
   p('Herminio Alves de Araujo Neto', 18, 'Meio-Campo', 45, 'Master'),
   p('Hernandes de Oliuveira dos Santos (Nando)', 19, 'Defensor', 48, 'Master'),
-  p('Humberto Fontana Neto (Alemão)', 20, 'Defensor', 41, 'Master'),
+  p('Humberto Fontana Neto (Alemão)', 20, 'Defensor', 41, 'Master', '', { isBoardMember: true }),
   p('José Ernandes Jesus Silva (Russo)', 24, 'Defensor', 57, 'Master'),
   p('Kleber Matias de Souza', 26, 'Defensor', 44, 'Master'),
   p('Leandro Xavier dos Santos', 28, 'Atacante', 42, 'Master'),
@@ -56,8 +71,8 @@ export const initialPlayers: Player[] = [
   p('Marcos Ferreira Neves', 35, 'Goleiro', 47, 'Master'),
   p('Odilon Roberto Leite da Silva', 39, 'Meio-Campo', 57, 'Master'),
   p('Rafael Borges Santos', 41, 'Defensor', 45, 'Master'),
-  p('Ramon Pessoa Dantas', 43, 'Meio-Campo', 43, 'Master'),
-  p('Renato Godoi Moreira', 44, 'Meio-Campo', 52, 'Master'),
+  p('Ramon Pessoa Dantas', 43, 'Meio-Campo', 43, 'Master', '', { isBoardMember: true }),
+  p('Renato Godoi Moreira', 44, 'Meio-Campo', 52, 'Master', '', { isBoardMember: true }),
   p('Renato Machado Ferraris', 45, 'Meio-Campo', 41, 'Master'),
   p('Ricardo Simao da Silva', 46, 'Atacante', 42, 'Master'),
   p('Ricardo Yoshiyuki Okawada', 47, 'Defensor', 43, 'Master'),
@@ -65,11 +80,11 @@ export const initialPlayers: Player[] = [
   p('Sandro Luiz Hamaue', 50, 'Atacante', 45, 'Master'),
 
   // Veterano/Esporte
-  p('Andrey Vinicius Damasceno', 3, 'Atacante', 34, 'Veterano/Esporte'),
+  p('Andrey Vinicius Damasceno', 3, 'Atacante', 34, 'Veterano/Esporte', '', { isBoardMember: true }),
   p('Arthur de Souza Rebolo', 5, 'Meio-Campo', 37, 'Veterano/Esporte'),
   p('César Henrique (Rato)', 7, 'Meio-Campo', 28, 'Veterano/Esporte'),
   p('Daniel Lessa do Rosario', 8, 'Meio-Campo', 33, 'Veterano/Esporte'),
-  p('Eduardo Tadashi Shiga', 9, 'Meio-Campo', 36, 'Veterano/Esporte'),
+  p('Eduardo Tadashi Shiga', 9, 'Meio-Campo', 36, 'Veterano/Esporte', '', { isBoardMember: true, number: 8 }),
   p('Elliakin de Matos Silva', 10, 'Meio-Campo', 37, 'Veterano/Esporte'),
   p('Erick Yamamoto Dantas', 12, 'Defensor', 28, 'Veterano/Esporte'),
   p('Ewerton Benjamin Santos Barbosa', 13, 'Atacante', 35, 'Veterano/Esporte'),
@@ -79,9 +94,9 @@ export const initialPlayers: Player[] = [
   p('Jonathan do Nascimento Silva (Hulk)', 23, 'Atacante', 36, 'Veterano/Esporte'),
   p('José Roberto Ramos da Silva Junior', 25, 'Atacante', 30, 'Veterano/Esporte'),
   p('Lauro da Silva Gonzaga Junior (Junho)', 27, 'Atacante', 38, 'Veterano/Esporte'),
-  p('Lucas Aparecido Pedroso', 29, 'Meio-Campo', 41, 'Veterano/Esporte'),
+  p('Lucas Aparecido Pedroso', 29, 'Meio-Campo', 41, 'Veterano/Esporte', '', { isBoardMember: true }),
   p('Luiz Carlos de Camargo Junior', 32, 'Atacante', 31, 'Veterano/Esporte'),
-  p('Marinho Puerta Junior', 36, 'Atacante', 38, 'Veterano/Esporte'),
+  p('Marinho Puerta Junior', 36, 'Atacante', 38, 'Veterano/Esporte', '', { isBoardMember: true }),
   p('Matheus Ferreira de Araujo', 37, 'Defensor', 18, 'Veterano/Esporte'),
   p('Mateus Macena da Silva', 38, 'Defensor', 28, 'Veterano/Esporte'),
   p('Paulo Henrique Aquino de Goes', 40, 'Atacante', 37, 'Veterano/Esporte'),
@@ -89,6 +104,14 @@ export const initialPlayers: Player[] = [
   p('Roni Simao da Silva', 49, 'Meio-Campo', 39, 'Veterano/Esporte'),
   p('Washington Dias da Silva', 51, 'Atacante', 40, 'Veterano/Esporte'),
 ];
+
+// Default PIN hash("1234") for all non-directors so login works even without cache
+for (const player of initialPlayers) {
+  if (!player.isBoardMember) {
+    player.pin = DEFAULT_PIN_HASH;
+    player.mustChangePin = true;
+  }
+}
 
 function m(id: string, date: string, time: string, opponent: string, stadium: string, team: 'Master' | 'Veterano/Esporte' | 'Ambos', homeScore?: number | null, awayScore?: number | null): Match[] {
   const hs = homeScore ?? undefined;

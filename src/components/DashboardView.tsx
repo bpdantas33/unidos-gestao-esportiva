@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Timer, ArrowUp, Activity, CheckCircle, AlertTriangle, ChevronLeft, ChevronRight, MapPin, Copy, ExternalLink, Check, Cake } from 'lucide-react';
 import { Player, Match, Transaction, SquadCategory } from '../types';
 import { UNIDOS_LOGO, TITANS_LOGO } from '../data/initialData';
-import { formatCurrency } from '../lib/utils';
+import { formatCurrency, playerImageUrl, parseMatchDate, isIntraSquadMatch } from '../lib/utils';
 
 interface DashboardViewProps {
   players: Player[];
@@ -11,6 +11,7 @@ interface DashboardViewProps {
   onPlayerClick: (player: Player) => void;
   onOpenNewSession: () => void;
   onConfirmAttendance: (matchId: string, playerId: string, status: 'CONFIRMADO' | 'AUSENTE') => void;
+  onMatchClick?: (match: Match) => void;
   session: { role: 'admin' | 'player'; playerId?: string } | null;
   currentSquad: SquadCategory;
 }
@@ -22,6 +23,7 @@ export default function DashboardView({
   onPlayerClick,
   onOpenNewSession,
   onConfirmAttendance,
+  onMatchClick,
   session,
   currentSquad
 }: DashboardViewProps) {
@@ -49,17 +51,48 @@ export default function DashboardView({
   // 2. Results Carousel Index
   const [carouselIndex, setCarouselIndex] = useState(0);
   const squadMatches = matches.filter(m => m.squad === currentSquad);
-  const recentMatches = squadMatches.filter(m => m.homeScore !== undefined || m.status === 'CANCELADO');
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const nextMatch = squadMatches
-    .filter(m => m.status === 'CONFIRMADO')
-    .find(m => {
-      const [dia, mes, ano] = m.date.split('/');
-      return new Date(+ano, +mes - 1, +dia) >= today;
+  const recentMatches = squadMatches
+    .filter(m => {
+      const matchDate = parseMatchDate(m.date);
+      return matchDate ? matchDate < today : false;
+    })
+    .sort((a, b) => {
+      const mdA = parseMatchDate(a.date);
+      const mdB = parseMatchDate(b.date);
+      return (mdB ? mdB.getTime() : 0) - (mdA ? mdA.getTime() : 0);
     });
+
+  useEffect(() => {
+    setCarouselIndex(0);
+  }, [matches]);
+  const appLaunchDate = new Date(2026, 6, 6);
+  const squadMatchesWithConfirmation = squadMatches.filter(m => {
+    const md = parseMatchDate(m.date);
+    return md && md >= appLaunchDate && m.confirmedPlayers && m.confirmedPlayers.length > 0 && !isIntraSquadMatch(m);
+  });
+  const getAttendance = (playerId: string) => {
+    const total = squadMatchesWithConfirmation.length;
+    if (total === 0) return 0;
+    const confirmed = squadMatchesWithConfirmation.filter(m => m.confirmedPlayers?.includes(playerId)).length;
+    return Math.round((confirmed / total) * 100);
+  };
+  const nextMatch = squadMatches
+    .filter(m => m.status !== 'CANCELADO')
+    .filter(m => {
+      const md = parseMatchDate(m.date);
+      return md ? md >= today : false;
+    })
+    .sort((a, b) => {
+      const dA = parseMatchDate(a.date)?.getTime() || 0;
+      const dB = parseMatchDate(b.date)?.getTime() || 0;
+      return dA - dB;
+    })[0] || null;
   const [copied, setCopied] = useState(false);
   const [showBirthdayWidget, setShowBirthdayWidget] = useState(true);
+  const [adminSelectedPlayerId, setAdminSelectedPlayerId] = useState('');
+  const nextSquadPlayers = nextMatch ? players.filter(p => p.squad === nextMatch.squad) : [];
 
   // Find players with birthdays in the current week
   const getWeeklyBirthdays = () => {
@@ -200,8 +233,9 @@ export default function DashboardView({
                   <img
                     alt={player.name}
                     className="w-full h-full object-cover"
-                    src={player.image}
+                    src={playerImageUrl(player.name, player.image)}
                     referrerPolicy="no-referrer"
+                    onError={(e) => { e.currentTarget.src = playerImageUrl(player.name, ''); }}
                   />
                 </div>
                 <div className="text-left">
@@ -253,6 +287,10 @@ export default function DashboardView({
                 <span>{nextMatch ? `${nextMatch.time}h` : 'Horário'}</span>
               </div>
 
+              {nextMatch?.observation && (
+                <p className="text-xs text-[#d4af37]/70 font-medium italic">📌 {nextMatch.observation}</p>
+              )}
+
               <p className="text-xs text-white/60 font-semibold flex items-center gap-1.5">
                 <span>📍</span>
                 {nextMatch?.address ?? (nextMatch?.stadium === 'Campo de Terra do Alvorada' || !nextMatch
@@ -283,13 +321,14 @@ export default function DashboardView({
               
               <span className="text-2xl md:text-3xl font-black text-[#d4af37]/60 italic font-mono">VS</span>
               
-              <div className="flex flex-col items-center gap-2">
-                <div className="w-20 h-20 md:w-24 md:h-24 bg-white/10 backdrop-blur rounded-full flex items-center justify-center p-4 shadow-xl border-4 border-white/10">
+                <div className="flex flex-col items-center gap-2">
+                <div className="w-20 h-20 md:w-24 md:h-24 bg-white/10 backdrop-blur rounded-full flex items-center justify-center shadow-xl border-4 border-white/10 overflow-hidden">
                   <img
                     alt="Oponente Logo"
-                    className="w-full h-full object-contain"
+                    className="w-full h-full object-cover scale-[1.35]"
                     src={nextMatch ? (nextMatch.homeTeam.includes('Unidos') ? nextMatch.awayLogo : nextMatch.homeLogo) : TITANS_LOGO}
                     referrerPolicy="no-referrer"
+                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
                   />
                 </div>
                 <span className="font-bold text-xs md:text-sm text-white/70 uppercase tracking-wider">
@@ -346,11 +385,68 @@ export default function DashboardView({
               })()
             )}
 
+            {/* Admin — confirmar presença em nome de um atleta */}
+            {nextMatch && session?.role === 'admin' && (
+              <div className="p-4 bg-white/5 backdrop-blur-md rounded-xl border border-white/10 space-y-3 w-full max-w-md">
+                <p className="text-xs font-bold text-[#d4af37] uppercase tracking-wider">
+                  Confirmar presença em nome de um atleta:
+                </p>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <select
+                    value={adminSelectedPlayerId}
+                    onChange={(e) => setAdminSelectedPlayerId(e.target.value)}
+                    className="flex-1 px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-xs font-bold text-white outline-none focus:ring-1 focus:ring-[#d4af37]"
+                  >
+                    <option value="" style={{ color: '#1c1b1b', background: '#fff' }}>-- Selecione --</option>
+                    {nextSquadPlayers.map(p => (
+                      <option key={p.id} value={p.id} style={{ color: '#1c1b1b', background: '#fff' }}>
+                        #{p.number} - {p.name}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="flex gap-2 w-full sm:w-auto">
+                    <button
+                      onClick={() => {
+                        if (!adminSelectedPlayerId) return;
+                        onConfirmAttendance(nextMatch.id, adminSelectedPlayerId, 'CONFIRMADO');
+                        setAdminSelectedPlayerId('');
+                      }}
+                      disabled={!adminSelectedPlayerId}
+                      className="flex-1 sm:flex-none px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-extrabold text-xs rounded-lg transition-all active:scale-95 cursor-pointer uppercase tracking-wider"
+                    >
+                      CONFIRMAR
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (!adminSelectedPlayerId) return;
+                        onConfirmAttendance(nextMatch.id, adminSelectedPlayerId, 'AUSENTE');
+                        setAdminSelectedPlayerId('');
+                      }}
+                      disabled={!adminSelectedPlayerId}
+                      className="flex-1 sm:flex-none px-3 py-2 bg-red-700 hover:bg-red-800 disabled:opacity-40 text-white font-extrabold text-xs rounded-lg transition-all active:scale-95 cursor-pointer uppercase tracking-wider"
+                    >
+                      RECUSAR
+                    </button>
+                  </div>
+                </div>
+                <p className="text-xs text-white/60 font-semibold">
+                  ✅ {nextMatch.confirmedPlayers?.length || 0} confirmados
+                  {(nextMatch.absentPlayers?.length || 0) > 0 && (
+                    <> · ❌ {nextMatch.absentPlayers?.length || 0} ausentes</>
+                  )}
+                  {' '}de {nextSquadPlayers.length} atletas
+                </p>
+              </div>
+            )}
+
             {/* Admin Master Access — status list only */}
             {nextMatch && session?.role === 'admin' && !session?.playerId && (
               <div className="p-4 bg-white/5 backdrop-blur-md rounded-xl border border-white/10 space-y-2 w-full max-w-md">
                 <p className="text-xs font-bold text-[#d4af37] uppercase tracking-wider">
                   ✅ {nextMatch.confirmedPlayers?.length || 0} CONFIRMADOS
+                  {(nextMatch.absentPlayers?.length || 0) > 0 && (
+                    <> · ❌ {nextMatch.absentPlayers?.length || 0} AUSENTES</>
+                  )}
                 </p>
                 <div className="flex flex-wrap gap-x-3 gap-y-1">
                   {players
@@ -358,14 +454,21 @@ export default function DashboardView({
                     .sort((a, b) => {
                       const aOk = nextMatch.confirmedPlayers?.includes(a.id) ?? false;
                       const bOk = nextMatch.confirmedPlayers?.includes(b.id) ?? false;
-                      return aOk !== bOk ? (aOk ? -1 : 1) : (a.number || 99) - (b.number || 99);
+                      const aAbsent = nextMatch.absentPlayers?.includes(a.id) ?? false;
+                      const bAbsent = nextMatch.absentPlayers?.includes(b.id) ?? false;
+                      if (aOk !== bOk) return aOk ? -1 : 1;
+                      const aR = aAbsent ? 1 : 2;
+                      const bR = bAbsent ? 1 : 2;
+                      if (aR !== bR) return aR - bR;
+                      return (a.number || 99) - (b.number || 99);
                     })
                     .map(p => {
                       const confirmed = nextMatch.confirmedPlayers?.includes(p.id) ?? false;
+                      const absent = nextMatch.absentPlayers?.includes(p.id) ?? false;
                       return (
                         <span key={p.id} className="text-[11px] font-bold flex items-center gap-1">
-                          <span className={`w-1.5 h-1.5 rounded-full ${confirmed ? 'bg-green-400' : 'bg-white/20'}`} />
-                          <span className={confirmed ? 'text-white' : 'text-white/40'}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${confirmed ? 'bg-green-400' : absent ? 'bg-red-400' : 'bg-white/20'}`} />
+                          <span className={confirmed ? 'text-white' : absent ? 'text-red-400' : 'text-white/40'}>
                             #{p.number} {p.name.split(' ')[0]}
                           </span>
                         </span>
@@ -505,7 +608,12 @@ export default function DashboardView({
             return (
               <div
                 key={match.id}
-                className="flex-1 min-w-[280px] md:min-w-[320px] bg-white p-5 rounded-xl border border-outline-variant/30 shadow-sm hover:border-secondary transition-all card-hover-effect relative"
+                className={`flex-1 min-w-[280px] md:min-w-[320px] bg-white p-5 rounded-xl border border-outline-variant/30 shadow-sm hover:border-secondary transition-all card-hover-effect relative ${session?.role === 'admin' && onMatchClick ? 'cursor-pointer' : ''}`}
+                onClick={() => {
+                  if (session?.role === 'admin' && onMatchClick) {
+                    onMatchClick(match);
+                  }
+                }}
               >
                 <div className="flex items-center justify-between mb-4">
                   <span className="font-bold text-[10px] text-on-surface-variant uppercase tracking-wider">
@@ -526,40 +634,53 @@ export default function DashboardView({
                 {/* Score visualization */}
                 <div className="flex items-center justify-around py-2">
                   <div className="flex flex-col items-center gap-1.5">
-                    <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center border border-outline-variant/30 shadow-sm overflow-hidden relative">
-                      <img
-                        alt={match.homeTeam}
-                        className="w-full h-full object-cover"
-                        src={match.homeLogo}
-                        referrerPolicy="no-referrer"
-                      />
+                    <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center border border-outline-variant/30 shadow-sm overflow-hidden relative">
+                      {match.homeLogo ? (
+                        <img
+                          alt={match.homeTeam}
+                          className="w-full h-full object-contain"
+                          src={match.homeLogo}
+                          referrerPolicy="no-referrer"
+                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        />
+                      ) : null}
                     </div>
-                    <span className="font-bold text-xs uppercase tracking-tight text-on-surface">
-                      {match.homeTeam .includes('Unidos') ? 'UNI' : match.homeTeam.substring(0, 3).toUpperCase()}
+                    <span className="font-bold text-[11px] uppercase tracking-tight text-on-surface">
+                      {match.homeTeam .includes('Unidos') ? 'Unidos' : match.homeTeam}
                     </span>
                   </div>
 
                   <div className="flex items-center gap-3">
-                    <span className={`text-2xl font-black ${isWin ? 'text-primary' : 'text-on-surface'}`}>
-                      {match.homeScore !== undefined ? match.homeScore : ''}
-                    </span>
-                    <span className="text-outline text-lg font-semibold">-</span>
-                    <span className="text-2xl font-black text-on-surface">
-                      {match.awayScore !== undefined ? match.awayScore : (isCancel ? 'N/A' : '')}
-                    </span>
+                    {(() => {
+                      const unidosIsHome = match.homeTeam .includes('Unidos');
+                      return (
+                        <>
+                          <span className={`text-2xl font-black ${isWin && unidosIsHome ? 'text-primary' : 'text-on-surface'}`}>
+                            {match.homeScore !== undefined ? match.homeScore : ''}
+                          </span>
+                          <span className="text-outline text-lg font-semibold">-</span>
+                          <span className={`text-2xl font-black ${isWin && !unidosIsHome ? 'text-primary' : 'text-on-surface'}`}>
+                            {match.awayScore !== undefined ? match.awayScore : (isCancel ? 'N/A' : '')}
+                          </span>
+                        </>
+                      );
+                    })()}
                   </div>
 
                   <div className="flex flex-col items-center gap-1.5">
-                    <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center border border-outline-variant/30 shadow-sm overflow-hidden relative">
-                      <img
-                        alt={match.awayTeam}
-                        className="w-full h-full object-cover"
-                        src={match.awayLogo}
-                        referrerPolicy="no-referrer"
-                      />
+                    <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center border border-outline-variant/30 shadow-sm overflow-hidden relative">
+                      {match.awayLogo ? (
+                        <img
+                          alt={match.awayTeam}
+                          className="w-full h-full object-contain"
+                          src={match.awayLogo}
+                          referrerPolicy="no-referrer"
+                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        />
+                      ) : null}
                     </div>
-                    <span className="font-bold text-xs text-on-surface-variant uppercase tracking-tight">
-                      {match.awayTeam .includes('Unidos') ? 'UNI' : match.awayTeam.substring(0, 3).toUpperCase()}
+                    <span className="font-bold text-[11px] text-on-surface-variant uppercase tracking-tight">
+                      {match.awayTeam .includes('Unidos') ? 'Unidos' : match.awayTeam}
                     </span>
                   </div>
                 </div>
@@ -577,7 +698,12 @@ export default function DashboardView({
                     <>
                       <span className="text-[12px] text-secondary font-bold">⚽</span>
                       <p className="text-xs text-on-surface-variant font-medium">
-                        {match.scorers ? (
+                        {match.goalScorers && match.goalScorers.length > 0 ? (
+                          <span>Marcadores: <strong className="text-on-surface">{match.goalScorers.map(gs => {
+                            const p = players.find(pl => pl.id === gs.playerId);
+                            return `${p ? '#' + p.number + ' ' + p.name : '?'} (${gs.goals})`;
+                          }).join(', ')}</strong></span>
+                        ) : match.scorers ? (
                           <span>Marcadores: <strong className="text-on-surface">{match.scorers}</strong></span>
                         ) : (
                           <span>Sem gols anotados</span>
@@ -656,10 +782,11 @@ export default function DashboardView({
 
           <div className="space-y-1 max-h-[440px] overflow-y-auto custom-scrollbar pr-1">
             {(() => {
+              const sortByAttendance = (a: Player, b: Player) => getAttendance(b.id) - getAttendance(a.id);
               const grouped = {
-                lesionados: players.filter(p => p.isInjured),
-                atencao: players.filter(p => !p.isInjured && p.condition < 80),
-                disponiveis: players.filter(p => !p.isInjured && p.condition >= 80),
+                lesionados: players.filter(p => p.isInjured).sort(sortByAttendance),
+                atencao: players.filter(p => !p.isInjured && p.condition < 80).sort(sortByAttendance),
+                disponiveis: players.filter(p => !p.isInjured && p.condition >= 80).sort(sortByAttendance),
               };
               const sections = [
                 { key: 'disponiveis', label: '✅ DISPONÍVEIS', color: 'text-primary', data: grouped.disponiveis },
@@ -689,8 +816,9 @@ export default function DashboardView({
                           <img
                             alt={player.name}
                     className="w-full h-full object-cover"
-                            src={player.image}
+                            src={playerImageUrl(player.name, player.image)}
                             referrerPolicy="no-referrer"
+                            onError={(e) => { e.currentTarget.src = playerImageUrl(player.name, ''); }}
                           />
                         </div>
                         <div className="min-w-0 flex-1">
@@ -700,6 +828,9 @@ export default function DashboardView({
                           <p className="text-[11px] text-on-surface-variant mt-0.5">
                             {player.position}
                           </p>
+                          <span className="text-[10px] font-bold text-secondary mt-0.5 inline-block">
+                            {getAttendance(player.id)}% presença
+                          </span>
                         </div>
                       </div>
 

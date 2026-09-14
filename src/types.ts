@@ -41,9 +41,12 @@ export interface Match {
   stadium: string;
   address?: string;
   scorers?: string;
+  goalScorers?: { playerId: string; goals: number }[];
+  goalkeeperId?: string;
   observation?: string;
   squad: SquadCategory; // For which squad this match is
   confirmedPlayers?: string[]; // Player IDs who confirmed presence
+  absentPlayers?: string[]; // Player IDs who declined (did not confirm)
 }
 
 export type ExpenseCategory = 
@@ -77,6 +80,7 @@ export interface UnpaidMember {
   isPaid?: boolean;
   reason?: string;
   cancelled?: boolean;
+  paymentStatus?: 'pending' | 'awaiting' | 'paid';
 }
 
 export interface TeamStandings {

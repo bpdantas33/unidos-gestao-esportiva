@@ -1,9 +1,13 @@
 import { useState } from 'react';
 import { Plus, Star, Trash2, MessageSquare } from 'lucide-react';
 import { Player, PlayerPosition } from '../types';
+import { playerImageUrl, parseMatchDate, isIntraSquadMatch } from '../lib/utils';
+
+import { Match } from '../types';
 
 interface SquadViewProps {
   players: Player[];
+  matches: Match[];
   onPlayerClick: (player: Player) => void;
   onOpenAddPlayer: () => void;
   onDeletePlayer: (id: string) => void;
@@ -12,6 +16,7 @@ interface SquadViewProps {
 
 export default function SquadView({
   players,
+  matches,
   onPlayerClick,
   onOpenAddPlayer,
   onDeletePlayer,
@@ -44,6 +49,19 @@ export default function SquadView({
   };
 
   const stats = calculateOverview();
+
+  // Attendance calculation — matches from app launch (06/07) onward with confirmed players
+  const appLaunchDate = new Date(2026, 6, 6);
+  const matchesWithConfirmations = matches.filter(m => {
+    const md = parseMatchDate(m.date);
+    return md && md >= appLaunchDate && m.confirmedPlayers && m.confirmedPlayers.length > 0 && !isIntraSquadMatch(m);
+  });
+  const getAttendance = (playerId: string) => {
+    const total = matchesWithConfirmations.length;
+    if (total === 0) return 0;
+    const confirmed = matchesWithConfirmations.filter(m => m.confirmedPlayers?.includes(playerId)).length;
+    return Math.round((confirmed / total) * 100);
+  };
 
   const tabs: ('Todos' | PlayerPosition)[] = ['Todos', 'Goleiro', 'Defensor', 'Meio-Campo', 'Atacante'];
 
@@ -147,10 +165,11 @@ export default function SquadView({
                 className="h-60 relative overflow-hidden bg-surface-container cursor-pointer"
               >
                 <img
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  src={player.image}
+                  className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
+                  src={playerImageUrl(player.name, player.image)}
                   alt={player.name}
                   referrerPolicy="no-referrer"
+                  onError={(e) => { e.currentTarget.src = playerImageUrl(player.name, ''); }}
                 />
                 
                 {/* Number Badge */}
@@ -246,7 +265,7 @@ export default function SquadView({
                 </div>
 
                 {/* Individual statistics row */}
-                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-outline-variant/20 mt-4 text-xs">
+                <div className="grid grid-cols-3 gap-2 pt-4 border-t border-outline-variant/20 mt-4 text-xs">
                   {player.position === 'Goleiro' ? (
                     <>
                       <div>
@@ -256,6 +275,10 @@ export default function SquadView({
                       <div>
                         <p className="text-[10px] text-on-surface-variant uppercase font-bold tracking-wider">Clean Sheets</p>
                         <p className="font-bold text-primary mt-0.5">{player.cleanSheets || 0}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-on-surface-variant uppercase font-bold tracking-wider">Presença</p>
+                        <p className="font-bold text-secondary mt-0.5">{getAttendance(player.id)}%</p>
                       </div>
                     </>
                   ) : player.position === 'Defensor' ? (
@@ -268,6 +291,10 @@ export default function SquadView({
                         <p className="text-[10px] text-on-surface-variant uppercase font-bold tracking-wider">Desarmes</p>
                         <p className="font-bold text-primary mt-0.5">{player.tackles || 0}</p>
                       </div>
+                      <div>
+                        <p className="text-[10px] text-on-surface-variant uppercase font-bold tracking-wider">Presença</p>
+                        <p className="font-bold text-secondary mt-0.5">{getAttendance(player.id)}%</p>
+                      </div>
                     </>
                   ) : (
                     <>
@@ -278,6 +305,10 @@ export default function SquadView({
                       <div>
                         <p className="text-[10px] text-on-surface-variant uppercase font-bold tracking-wider">Gols</p>
                         <p className="font-bold text-primary mt-0.5">{player.goals || 0}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-on-surface-variant uppercase font-bold tracking-wider">Presença</p>
+                        <p className="font-bold text-secondary mt-0.5">{getAttendance(player.id)}%</p>
                       </div>
                     </>
                   )}

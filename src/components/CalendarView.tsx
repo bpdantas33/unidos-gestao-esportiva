@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { Match, Player, SquadCategory } from '../types';
 import { MAP_IMAGE, UNIDOS_LOGO, IBERIA_LOGO } from '../data/initialData';
+import { playerImageUrl, parseMatchDate } from '../lib/utils';
 
 interface CalendarViewProps {
   matches: Match[];
@@ -38,11 +39,37 @@ export default function CalendarView({
   onConfirmAttendance,
   session
 }: CalendarViewProps) {
+  const [showAllPast, setShowAllPast] = useState(false);
   // Filter matches
-  const upcomingMatches = matches.filter(m => m.status === 'CONFIRMADO');
-  const pastMatches = matches.filter(
-    m => m.homeScore !== undefined || m.status === 'CANCELADO' || m.status === 'VITÓRIA' || m.status === 'EMPATE' || m.status === 'DERROTA'
-  );
+  const today = new Date(new Date().toDateString());
+  const upcomingMatches = matches.filter(m => {
+    if (m.status !== 'CONFIRMADO') return false;
+    const md = parseMatchDate(m.date);
+    return md ? md >= today : false;
+  });
+  const pastMatches = matches.filter(m => {
+    if (m.status === 'CANCELADO') return true;
+    if (m.homeScore != null) return true;
+    const md = parseMatchDate(m.date);
+    return md ? md < today : false;
+  });
+
+  const getNextMatchDay = () => {
+    if (upcomingMatches.length === 0) return 'Nenhum agendado';
+    const first = upcomingMatches.sort((a, b) => {
+      const mdA = parseMatchDate(a.date);
+      const mdB = parseMatchDate(b.date);
+      return (mdA ? mdA.getTime() : 0) - (mdB ? mdB.getTime() : 0);
+    })[0];
+    const date = parseMatchDate(first.date);
+    const weekdays = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+    const today = new Date(new Date().toDateString());
+    const diffDays = Math.round((date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    if (diffDays === 0) return 'Hoje!';
+    if (diffDays === 1) return 'Amanhã';
+    if (diffDays <= 7) return `Este ${weekdays[date.getDay()]}`;
+    return weekdays[date.getDay()] + ', ' + first.date;
+  };
 
   // States
   const [isSynced, setIsSynced] = useState(false);
@@ -262,7 +289,7 @@ export default function CalendarView({
         <div className="p-4 rounded-xl bg-white border border-outline-variant/30 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs text-on-surface-variant font-medium mb-1">Próxima Rodada</p>
-            <p className="text-2xl font-black text-primary">Este Domingo</p>
+            <p className="text-2xl font-black text-primary">{getNextMatchDay()}</p>
           </div>
           <div className="p-3 rounded-lg bg-surface-container-high text-primary">
             <Timer className="w-5 h-5" />
@@ -286,9 +313,17 @@ export default function CalendarView({
         ) : (
           <div className="grid grid-cols-1 gap-6">
             {upcomingMatches.map((match) => {
-              const dateParts = match.date.split(' ');
-              const month = dateParts[1] || 'OUT';
-              const dayNum = dateParts[0] || '24';
+              let dayNum: string, month: string;
+              if (match.date.includes('/')) {
+                const [d, m] = match.date.split('/');
+                dayNum = d;
+                const months = ['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
+                month = months[parseInt(m) - 1] || 'OUT';
+              } else {
+                const parts = match.date.split(' ');
+                dayNum = parts[0] || '24';
+                month = parts[1] || 'OUT';
+              }
               
               // Get list of confirmed players for this match
               const matchConfirmedList = players.filter(p => match.confirmedPlayers?.includes(p.id));
@@ -365,6 +400,11 @@ export default function CalendarView({
                       <div className="flex items-center gap-1 text-on-surface-variant">
                         <span className="text-[10px] font-bold text-on-surface-variant">{match.stadium}</span>
                       </div>
+                      {match.observation && (
+                        <div className="flex items-center gap-1 text-on-surface-variant mt-1">
+                          <span className="text-[10px] italic text-tertiary">{match.observation}</span>
+                        </div>
+                      )}
                       <button
                         onClick={() => {
                           const text = `⚽ *CONVOCAÇÃO - UNIDOS FC* ⚽\n\n🏆 Confronto: *${match.homeTeam} VS ${match.awayTeam}*\n📅 Data: *${match.date}*\n⏰ Horário: *${match.time || '10:30'}h*\n🏟️ Local: *${match.stadium}*\n📋 Elenco: *${match.squad}*\n\nBora pro jogo rapaziada! Confirmem a presença de vocês no nosso aplicativo! 🔴⚪`;
@@ -383,10 +423,10 @@ export default function CalendarView({
                   <div className="bg-surface-container-low px-5 py-4 border-t border-outline-variant/35 flex flex-col gap-4 text-left">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                       <div>
-                        <h4 className="text-xs font-black text-primary flex items-center gap-1.5 uppercase tracking-wide">
-                          <UserCheck className="w-4 h-4 text-secondary" />
-                          Confirmação de Presença ({matchConfirmedList.length} Atletas Confirmados)
-                        </h4>
+                          <h4 className="text-xs font-black text-primary flex items-center gap-1.5 uppercase tracking-wide">
+                            <UserCheck className="w-4 h-4 text-secondary" />
+                            Confirmação de Presença ({matchConfirmedList.length} confirmados{(match.absentPlayers?.length ?? 0) > 0 ? `, ${match.absentPlayers?.length} ausentes` : ''})
+                          </h4>
                         <p className="text-[10px] text-on-surface-variant mt-0.5">
                           Disponibilizado para os jogadores confirmarem presença para este jogo.
                         </p>
@@ -465,7 +505,7 @@ export default function CalendarView({
                           })()
                         ) : (
                           <>
-                            <p className="text-xs font-bold text-primary">Selecione seu nome do elenco de {match.squad}:</p>
+                            <p className="text-xs font-bold text-primary">Confirmar presença em nome de um atleta ({match.squad}):</p>
                             <div className="flex flex-col sm:flex-row gap-2">
                               <select
                                 value={selectedPlayerId}
@@ -517,10 +557,11 @@ export default function CalendarView({
                             className="inline-flex items-center gap-1.5 bg-white border border-outline-variant/35 px-2.5 py-1 rounded-full text-xs font-extrabold text-on-surface shadow-sm hover:border-secondary hover:text-secondary transition-all"
                           >
                             <img 
-                              src={p.image} 
+                              src={playerImageUrl(p.name, p.image)} 
                               alt={p.name} 
                               className="w-4 h-4 rounded-full object-cover shrink-0" 
                               referrerPolicy="no-referrer"
+                              onError={(e) => { e.currentTarget.src = playerImageUrl(p.name, ''); }}
                             />
                             <span>{p.name.split(' ')[0]}</span>
                             <span className="text-[10px] bg-secondary/15 text-secondary px-1.5 py-0.2 rounded-full font-bold">#{p.number}</span>
@@ -537,20 +578,29 @@ export default function CalendarView({
                     <div className="pt-2.5 border-t border-outline-variant/20 space-y-1.5">
                       <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">
                         Status do Elenco ({squadPlayers.length})
+                        {match.confirmedPlayers && <> · ✅ {match.confirmedPlayers.length}</>}
+                        {match.absentPlayers && match.absentPlayers.length > 0 && <> · ❌ {match.absentPlayers.length}</>}
                       </p>
                       <div className="flex flex-wrap gap-x-2.5 gap-y-1">
                         {squadPlayers
                           .sort((a, b) => {
                             const aOk = match.confirmedPlayers?.includes(a.id) ?? false;
                             const bOk = match.confirmedPlayers?.includes(b.id) ?? false;
-                            return aOk !== bOk ? (aOk ? -1 : 1) : (a.number || 99) - (b.number || 99);
+                            const aAbsent = match.absentPlayers?.includes(a.id) ?? false;
+                            const bAbsent = match.absentPlayers?.includes(b.id) ?? false;
+                            if (aOk !== bOk) return aOk ? -1 : 1;
+                            const aR = aAbsent ? 1 : 2;
+                            const bR = bAbsent ? 1 : 2;
+                            if (aR !== bR) return aR - bR;
+                            return (a.number || 99) - (b.number || 99);
                           })
                           .map(p => {
                             const confirmed = match.confirmedPlayers?.includes(p.id) ?? false;
+                            const absent = match.absentPlayers?.includes(p.id) ?? false;
                             return (
                               <span key={p.id} className="text-[10px] font-bold flex items-center gap-1">
-                                <span className={`w-1.5 h-1.5 rounded-full ${confirmed ? 'bg-green-500' : 'bg-outline-variant'}`} />
-                                <span className={confirmed ? 'text-on-surface' : 'text-on-surface-variant/60'}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${confirmed ? 'bg-green-500' : absent ? 'bg-red-400' : 'bg-outline-variant'}`} />
+                                <span className={confirmed ? 'text-on-surface' : absent ? 'text-red-500' : 'text-on-surface-variant/60'}>
                                   #{p.number} {p.name.split(' ')[0]}
                                 </span>
                               </span>
@@ -589,10 +639,18 @@ export default function CalendarView({
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant/10">
-                {pastMatches.slice(0, 5).map((match) => {
+                {pastMatches.slice(0, showAllPast ? undefined : 5).map((match) => {
                   const isCancel = match.status === 'CANCELADO';
                   return (
-                    <tr key={match.id} className="hover:bg-surface-container-low transition-all duration-150">
+                    <tr 
+                      key={match.id} 
+                      className={`hover:bg-surface-container-low transition-all duration-150 ${session?.role === 'admin' && onMatchClick ? 'cursor-pointer' : ''}`}
+                      onClick={() => {
+                        if (session?.role === 'admin' && onMatchClick) {
+                          onMatchClick(match);
+                        }
+                      }}
+                    >
                       <td className="p-4">
                         <p className="font-bold text-sm text-on-surface">{match.date}</p>
                         <p className="text-[10px] text-on-surface-variant">{match.stadium}</p>
@@ -628,7 +686,12 @@ export default function CalendarView({
                         </span>
                       </td>
                       <td className="p-4 text-right text-xs italic text-on-surface-variant">
-                        {match.scorers ? `Marcadores: ${match.scorers}` : (match.observation || 'Equilíbrio tático')}
+                        {match.goalScorers && match.goalScorers.length > 0
+                          ? 'Marcadores: ' + match.goalScorers.map(gs => {
+                              const p = players.find(pl => pl.id === gs.playerId);
+                              return `${p ? '#' + p.number + ' ' + p.name : '?'} (${gs.goals})`;
+                            }).join(', ')
+                          : match.scorers ? `Marcadores: ${match.scorers}` : (match.observation || 'Equilíbrio tático')}
                       </td>
                     </tr>
                   );
@@ -636,6 +699,16 @@ export default function CalendarView({
               </tbody>
             </table>
           </div>
+          {pastMatches.length > 5 && (
+            <div className="p-3 border-t border-outline-variant/10 text-center">
+              <button
+                onClick={() => setShowAllPast(!showAllPast)}
+                className="text-xs font-bold text-primary hover:text-primary/80 transition-all cursor-pointer"
+              >
+                {showAllPast ? '▲ Mostrar menos' : `▼ Ver todos (${pastMatches.length} jogos)`}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

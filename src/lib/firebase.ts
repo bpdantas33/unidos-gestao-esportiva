@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, getDocs, doc, writeBatch, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, collection, getDocs, doc, writeBatch, setDoc, deleteDoc, getDoc, onSnapshot } from 'firebase/firestore';
 import { getAuth, signInAnonymously } from 'firebase/auth';
 
 const firebaseConfig = {
@@ -12,7 +12,11 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, "ai-studio-1aa8d619-5d39-49fe-a797-0b814fd6c276");
+let _db: ReturnType<typeof initializeFirestore> | null = null;
+export function getDb() {
+  if (!_db) _db = initializeFirestore(app, { localCache: persistentLocalCache() }, "ai-studio-1aa8d619-5d39-49fe-a797-0b814fd6c276");
+  return _db;
+}
 export const auth = getAuth(app);
 
 export async function initAuth(): Promise<void> {
@@ -29,7 +33,7 @@ export async function initAuth(): Promise<void> {
 
 export async function getCollectionData<T>(collectionName: string): Promise<T[]> {
   try {
-    const querySnapshot = await getDocs(collection(db, collectionName));
+    const querySnapshot = await getDocs(collection(getDb(), collectionName));
     const data: T[] = [];
     querySnapshot.forEach((docSnap) => {
       data.push({ ...docSnap.data(), id: docSnap.id } as T);
@@ -39,6 +43,28 @@ export async function getCollectionData<T>(collectionName: string): Promise<T[]>
     console.error(`Error loading collection ${collectionName}:`, error);
     throw error;
   }
+}
+
+export function listenCollection<T>(
+  collectionName: string,
+  onData: (items: T[]) => void,
+  onError?: (err: Error) => void
+): () => void {
+  const unsub = onSnapshot(
+    collection(getDb(), collectionName),
+    (snapshot) => {
+      const data: T[] = [];
+      snapshot.forEach((docSnap) => {
+        data.push({ ...docSnap.data(), id: docSnap.id } as T);
+      });
+      onData(data);
+    },
+    (error) => {
+      console.error(`Error listening to ${collectionName}:`, error);
+      onError?.(error);
+    }
+  );
+  return unsub;
 }
 
 function stripUndefined<T extends Record<string, any>>(obj: T): T {
@@ -51,7 +77,7 @@ function stripUndefined<T extends Record<string, any>>(obj: T): T {
 
 export async function saveItem<T extends { id: string }>(collectionName: string, item: T): Promise<void> {
   try {
-    const docRef = doc(db, collectionName, item.id);
+    const docRef = doc(getDb(), collectionName, item.id);
     await setDoc(docRef, stripUndefined(item));
   } catch (error) {
     console.error(`Error saving item in ${collectionName}:`, error);
@@ -61,7 +87,7 @@ export async function saveItem<T extends { id: string }>(collectionName: string,
 
 export async function deleteItem(collectionName: string, id: string): Promise<void> {
   try {
-    const docRef = doc(db, collectionName, id);
+    const docRef = doc(getDb(), collectionName, id);
     await deleteDoc(docRef);
   } catch (error) {
     console.error(`Error deleting item ${id} from ${collectionName}:`, error);
@@ -71,9 +97,9 @@ export async function deleteItem(collectionName: string, id: string): Promise<vo
 
 export async function saveCollectionData<T extends { id: string }>(collectionName: string, items: T[]): Promise<void> {
   try {
-    const batch = writeBatch(db);
+    const batch = writeBatch(getDb());
     for (const item of items) {
-      const docRef = doc(db, collectionName, item.id);
+      const docRef = doc(getDb(), collectionName, item.id);
       batch.set(docRef, stripUndefined(item));
     }
     await batch.commit();
@@ -85,7 +111,7 @@ export async function saveCollectionData<T extends { id: string }>(collectionNam
 
 export async function getDocData<T>(collectionName: string, docId: string): Promise<T | null> {
   try {
-    const docRef = doc(db, collectionName, docId);
+    const docRef = doc(getDb(), collectionName, docId);
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
       return { ...docSnap.data(), id: docSnap.id } as T;

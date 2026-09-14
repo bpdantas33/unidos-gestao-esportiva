@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
-import { X, Check, Dumbbell, Calendar, Users, DollarSign, Star, AlertTriangle, RefreshCw, MessageSquare, Camera, Upload, Key, HelpCircle } from 'lucide-react';
-import { Player, PlayerPosition, Match, Transaction, ExpenseCategory, SquadCategory } from '../types';
+import React, { useState, useEffect } from 'react';
+import { X, Check, Dumbbell, Calendar, Users, DollarSign, Star, AlertTriangle, RefreshCw, MessageSquare, Camera, Upload, Key, HelpCircle, Copy, QrCode } from 'lucide-react';
+import { Player, PlayerPosition, Match, Transaction, ExpenseCategory, SquadCategory, UnpaidMember } from '../types';
 import { UNIDOS_LOGO, TITAN_FC_LOGO, IBERIA_LOGO, MNT_LOGO, CTY_LOGO, EGL_LOGO } from '../data/initialData';
+import { hashPin, playerImageUrl, teamLogoUrl } from '../lib/utils';
+import { generatePixPayload, generatePixQRCode } from '../lib/pix';
 
 interface ModalWrapperProps {
   title: string;
@@ -29,6 +31,129 @@ function ModalWrapper({ title, onClose, children }: ModalWrapperProps) {
     </div>
   );
 }
+
+// PIX PAYMENT MODAL
+interface PixPaymentModalProps {
+  member: UnpaidMember;
+  pixKey: string;
+  merchantName: string;
+  merchantCity: string;
+  onConfirm: () => void;
+  onClose: () => void;
+}
+
+export function PixPaymentModal({ member, pixKey, merchantName, merchantCity, onConfirm, onClose }: PixPaymentModalProps) {
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
+  const [pixPayload, setPixPayload] = useState('');
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    const payload = generatePixPayload({
+      pixKey,
+      merchantName,
+      merchantCity,
+      amount: member.amount,
+      description: member.reason || 'Mensalidade',
+    });
+    setPixPayload(payload);
+    generatePixQRCode(payload).then(url => setQrCodeDataUrl(url));
+  }, []);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(pixPayload);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* fallback */ }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-primary-container/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 select-none">
+      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-outline-variant/30 overflow-hidden transform transition-all animate-in fade-in zoom-in-95 duration-200">
+        <div className="bg-primary text-white px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <QrCode className="w-5 h-5" />
+            <h3 className="font-bold text-lg">Pagamento via PIX</h3>
+          </div>
+          <button onClick={onClose} className="text-white/80 hover:text-white hover:bg-white/10 p-1.5 rounded-lg transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-5">
+          <div className="text-center">
+            <p className="font-bold text-lg text-on-surface">{member.name}</p>
+            <p className="text-sm text-on-surface-variant font-medium">{member.reason || 'Mensalidade'} — R$ {member.amount.toFixed(2)}</p>
+          </div>
+
+          <div className="flex justify-center">
+            {qrCodeDataUrl ? (
+              <img
+                src={qrCodeDataUrl}
+                alt="QR Code PIX"
+                className="w-56 h-56 rounded-xl shadow-lg border border-outline-variant/20"
+              />
+            ) : (
+              <div className="w-56 h-56 bg-surface-container-low rounded-xl flex items-center justify-center">
+                <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full" />
+              </div>
+            )}
+          </div>
+
+          <div className="bg-surface-container-low rounded-xl p-3 border border-outline-variant/20">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Código Copia e Cola</span>
+              <button
+                onClick={handleCopy}
+                className="flex items-center gap-1 text-[10px] font-bold text-primary hover:text-primary/80 transition-colors"
+              >
+                <Copy className="w-3 h-3" />
+                {copied ? 'Copiado!' : 'Copiar'}
+              </button>
+            </div>
+            <p className="text-[10px] text-on-surface-variant break-all font-mono bg-white rounded-lg p-2 border border-outline-variant/10 select-all">
+              {pixPayload || 'Gerando código...'}
+            </p>
+          </div>
+
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+            <p className="text-[11px] text-amber-800 font-medium leading-relaxed">
+              O pagamento vai para a chave PIX oficial do time. Após pagar, clique no botão abaixo para informar a diretoria.
+            </p>
+          </div>
+
+          <div className="space-y-1">
+            <p className="text-[10px] text-on-surface-variant font-bold uppercase tracking-wider">Como pagar:</p>
+            <ol className="text-xs text-on-surface-variant space-y-1 ml-4 list-decimal">
+              <li>Abra o app do seu banco</li>
+              <li>Escolha <strong>Pagar via PIX</strong></li>
+              <li>Escaneie o QR Code ou cole o código</li>
+              <li>Confirme o valor e pague</li>
+              <li>Volte aqui e clique em <strong>"Já paguei"</strong></li>
+            </ol>
+          </div>
+        </div>
+
+        <div className="px-6 pb-6 flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 py-3 bg-surface-container-low text-on-surface hover:bg-surface-container font-bold rounded-xl text-sm transition-all"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={onConfirm}
+            className="flex-1 py-3 bg-secondary text-white hover:brightness-110 font-bold rounded-xl text-sm shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
+          >
+            <Check className="w-4 h-4" />
+            Já Paguei
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 // 1. TRAINING SESSION MODAL
 interface TrainingModalProps {
@@ -133,6 +258,7 @@ export function ScheduleMatchModal({ onClose, onSubmit }: ScheduleMatchModalProp
   const [time, setTime] = useState('10:30');
   const [stadium, setStadium] = useState('Campo de Terra do Alvorada');
   const [address, setAddress] = useState('');
+  const [observation, setObservation] = useState('');
   const [type, setType] = useState('AMISTOSO');
   const [isHome, setIsHome] = useState(true);
 
@@ -147,7 +273,8 @@ export function ScheduleMatchModal({ onClose, onSubmit }: ScheduleMatchModalProp
       awayTeam: isHome ? opponent : 'Unidos',
       time,
       stadium,
-      address: address || undefined
+      address: address || undefined,
+      observation: observation || undefined,
     });
   };
 
@@ -243,6 +370,17 @@ export function ScheduleMatchModal({ onClose, onSubmit }: ScheduleMatchModalProp
         </div>
 
         <div className="space-y-1.5">
+          <label className="font-bold text-on-surface">Observação (opcional)</label>
+          <textarea
+            value={observation}
+            onChange={e => setObservation(e.target.value)}
+            placeholder="Ex: Campo sintético, levar chuteira adequada..."
+            rows={2}
+            className="w-full px-4 py-2 bg-surface-container-low border border-outline-variant/20 rounded-lg outline-none focus:ring-2 focus:ring-primary font-medium resize-none"
+          />
+        </div>
+
+        <div className="space-y-1.5">
           <label className="font-bold text-on-surface">Campeonato</label>
           <input
             type="text"
@@ -276,11 +414,13 @@ export function ScheduleMatchModal({ onClose, onSubmit }: ScheduleMatchModalProp
 // 2.5 EDIT MATCH MODAL
 interface EditMatchModalProps {
   match: Match;
+  players: Player[];
   onClose: () => void;
   onSubmit: (id: string, updates: Partial<Match>) => void;
+  onConfirmAttendance?: (matchId: string, playerId: string, status: 'CONFIRMADO' | 'AUSENTE') => void;
 }
 
-export function EditMatchModal({ match, onClose, onSubmit }: EditMatchModalProps) {
+export function EditMatchModal({ match, players, onClose, onSubmit, onConfirmAttendance }: EditMatchModalProps) {
   const isUnidosHome = match.homeTeam.includes('Unidos');
   const [opponentName, setOpponentName] = useState(isUnidosHome ? match.awayTeam : match.homeTeam);
   const [opponentLogo, setOpponentLogo] = useState(isUnidosHome ? match.awayLogo : match.homeLogo);
@@ -293,23 +433,65 @@ export function EditMatchModal({ match, onClose, onSubmit }: EditMatchModalProps
   const [homeScore, setHomeScore] = useState(match.homeScore !== undefined ? String(match.homeScore) : '');
   const [awayScore, setAwayScore] = useState(match.awayScore !== undefined ? String(match.awayScore) : '');
 
+  const [observation, setObservation] = useState(match.observation || '');
+  const [goalScorers, setGoalScorers] = useState<{ playerId: string; goals: number }[]>(
+    match.goalScorers ? [...match.goalScorers] : []
+  );
+  const [goalkeeperId, setGoalkeeperId] = useState(match.goalkeeperId || '');
+  const [scorerError, setScorerError] = useState('');
+
+  const goalMap: Record<string, number> = {};
+  for (const gs of goalScorers) {
+    goalMap[gs.playerId] = (goalMap[gs.playerId] || 0) + gs.goals;
+  }
+
+  const squadPlayers = players.filter(p => p.squad === match.squad);
+  const goalkeepers = squadPlayers.filter(p => p.position === 'Goleiro');
+
+  function handleGoalChange(playerId: string, val: string) {
+    const n = parseInt(val) || 0;
+    setGoalScorers(prev => {
+      const filtered = prev.filter(g => g.playerId !== playerId);
+      if (n > 0) filtered.push({ playerId, goals: n });
+      return filtered;
+    });
+    setScorerError('');
+  }
+
+  function getPlayerGoals(playerId: string) {
+    return goalMap[playerId] || 0;
+  }
+
   const handleSave = () => {
-    const hScore = homeScore ? parseInt(homeScore) : undefined;
-    const aScore = awayScore ? parseInt(awayScore) : undefined;
+    const rawH = homeScore ? parseInt(homeScore) : undefined;
+    const rawA = awayScore ? parseInt(awayScore) : undefined;
+    const hScore = rawH !== undefined && !isNaN(rawH) ? rawH : undefined;
+    const aScore = rawA !== undefined && !isNaN(rawA) ? rawA : undefined;
+    const unidosScore = isHome ? hScore : aScore;
+    const opponentScore = isHome ? aScore : hScore;
+
+    if (unidosScore !== undefined && unidosScore > 0) {
+      const totalScorerGoals = goalScorers.reduce((s, g) => s + g.goals, 0);
+      if (totalScorerGoals !== unidosScore) {
+        setScorerError(`Soma dos gols dos artilheiros (${totalScorerGoals}) não bate com o placar do Unidos (${unidosScore}).`);
+        return;
+      }
+    }
     let status = match.status;
-    if (hScore !== undefined && aScore !== undefined) {
-      if (hScore > aScore) status = 'VITÓRIA';
-      else if (hScore < aScore) status = 'DERROTA';
+    if (unidosScore !== undefined && opponentScore !== undefined) {
+      if (unidosScore > opponentScore) status = 'VITÓRIA';
+      else if (unidosScore < opponentScore) status = 'DERROTA';
       else status = 'EMPATE';
     } else if (status !== 'CONFIRMADO' && status !== 'CANCELADO') {
       status = 'CONFIRMADO';
     }
 
+    const logo = opponentLogo || teamLogoUrl(opponentName);
     onSubmit(match.id, {
       homeTeam: isHome ? 'Unidos Suzano' : opponentName,
       awayTeam: isHome ? opponentName : 'Unidos Suzano',
-      homeLogo: isHome ? UNIDOS_LOGO : opponentLogo,
-      awayLogo: isHome ? opponentLogo : UNIDOS_LOGO,
+      homeLogo: isHome ? UNIDOS_LOGO : logo,
+      awayLogo: isHome ? logo : UNIDOS_LOGO,
       date,
       time: time || undefined,
       stadium,
@@ -317,7 +499,10 @@ export function EditMatchModal({ match, onClose, onSubmit }: EditMatchModalProps
       type,
       homeScore: hScore,
       awayScore: aScore,
-      status
+      status,
+      observation: observation || undefined,
+      goalScorers: goalScorers.length > 0 ? goalScorers : undefined,
+      goalkeeperId: goalkeeperId || undefined,
     });
     onClose();
   };
@@ -442,7 +627,7 @@ export function EditMatchModal({ match, onClose, onSubmit }: EditMatchModalProps
 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <label className="font-bold text-on-surface">Placar Casa</label>
+            <label className="font-bold text-on-surface">{isHome ? 'Unidos' : 'Adversário'}</label>
             <input
               type="number"
               min="0"
@@ -452,7 +637,7 @@ export function EditMatchModal({ match, onClose, onSubmit }: EditMatchModalProps
             />
           </div>
           <div className="space-y-1.5">
-            <label className="font-bold text-on-surface">Placar Visitante</label>
+            <label className="font-bold text-on-surface">{isHome ? 'Adversário' : 'Unidos'}</label>
             <input
               type="number"
               min="0"
@@ -462,6 +647,110 @@ export function EditMatchModal({ match, onClose, onSubmit }: EditMatchModalProps
             />
           </div>
         </div>
+
+        {/* Goal Scorers */}
+        <div className="space-y-2 p-3.5 bg-amber-500/5 rounded-xl border border-amber-500/10">
+          <label className="font-bold text-sm text-amber-800 flex items-center gap-1.5">
+            <Star className="w-4 h-4" /> Artilheiros do Unidos
+          </label>
+          <p className="text-[10px] text-amber-700/70 font-medium">Marque quantos gols cada jogador fez. A soma deve bater com o placar do Unidos.</p>
+          <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
+            {squadPlayers.filter(p => p.position !== 'Goleiro').map(p => (
+              <div key={p.id} className="flex items-center gap-2">
+                <span className="flex-1 text-xs font-medium text-on-surface truncate">#{p.number} {p.name}</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="20"
+                  value={getPlayerGoals(p.id) || ''}
+                  onChange={e => handleGoalChange(p.id, e.target.value)}
+                  className="w-16 px-2 py-1.5 bg-surface-container-low border border-outline-variant/20 rounded-lg outline-none focus:ring-2 focus:ring-amber-500 font-bold text-center text-sm"
+                  placeholder="0"
+                />
+              </div>
+            ))}
+          </div>
+          {scorerError && (
+            <p className="text-[11px] text-red-600 font-bold bg-red-500/10 px-2 py-1 rounded">{scorerError}</p>
+          )}
+        </div>
+
+        {/* Goalkeeper */}
+        <div className="space-y-1.5 p-3.5 bg-sky-500/5 rounded-xl border border-sky-500/10">
+          <label className="font-bold text-sm text-sky-800 flex items-center gap-1.5">
+            <Users className="w-4 h-4" /> Goleiro
+          </label>
+          <select
+            value={goalkeeperId}
+            onChange={e => setGoalkeeperId(e.target.value)}
+            className="w-full px-4 py-2 bg-surface-container-low border border-outline-variant/20 rounded-lg outline-none focus:ring-2 focus:ring-sky-500 font-medium appearance-none cursor-pointer"
+          >
+            <option value="">-- Selecione o goleiro --</option>
+            {goalkeepers.map(gk => (
+              <option key={gk.id} value={gk.id}>#{gk.number} {gk.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Observation */}
+        <div className="space-y-1.5">
+          <label className="font-bold text-on-surface">Observação (opcional)</label>
+          <textarea
+            value={observation}
+            onChange={e => setObservation(e.target.value)}
+            placeholder="Ex: Campo sintético, levar chuteira de grama sintética..."
+            rows={3}
+            className="w-full px-4 py-2 bg-surface-container-low border border-outline-variant/20 rounded-lg outline-none focus:ring-2 focus:ring-primary font-medium resize-none"
+          />
+        </div>
+
+        {/* Attendance — confirmações de presença */}
+        {onConfirmAttendance && (
+          <div className="space-y-2 p-3.5 bg-emerald-500/5 rounded-xl border border-emerald-500/10">
+            <label className="font-bold text-sm text-emerald-800 flex items-center gap-1.5">
+              <Users className="w-4 h-4" /> Presença dos Atletas
+            </label>
+            <p className="text-[10px] text-emerald-700/70 font-medium">Altere o status de presença de cada atleta para esta partida.</p>
+            <div className="max-h-48 overflow-y-auto space-y-1 pr-1">
+              {squadPlayers.map(p => {
+                const confirmed = match.confirmedPlayers?.includes(p.id) ?? false;
+                const absent = match.absentPlayers?.includes(p.id) ?? false;
+                return (
+                  <div key={p.id} className="flex items-center gap-2 py-1">
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${confirmed ? 'bg-green-500' : absent ? 'bg-red-400' : 'bg-outline-variant'}`} />
+                    <span className={`flex-1 text-xs font-medium truncate ${confirmed ? 'text-on-surface' : absent ? 'text-red-600' : 'text-on-surface-variant'}`}>
+                      #{p.number} {p.name}
+                    </span>
+                    <div className="flex gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => onConfirmAttendance(match.id, p.id, confirmed ? 'AUSENTE' : 'CONFIRMADO')}
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer ${
+                          confirmed
+                            ? 'bg-green-500 text-white'
+                            : 'bg-surface-container-low text-on-surface-variant hover:bg-green-500/10'
+                        }`}
+                      >
+                        Presente
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onConfirmAttendance(match.id, p.id, absent ? 'CONFIRMADO' : 'AUSENTE')}
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer ${
+                          absent
+                            ? 'bg-red-400 text-white'
+                            : 'bg-surface-container-low text-on-surface-variant hover:bg-red-400/10'
+                        }`}
+                      >
+                        Ausente
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="pt-4 border-t border-outline-variant/10 flex gap-3">
           <button
@@ -845,6 +1134,8 @@ export function PlayerDetailsModal({ player, onClose, onUpdatePlayer, session }:
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const canEdit = session?.role === 'admin' || session?.playerId === player.id;
+  const canEditPhoto = session?.role === 'admin';
+  const [boardLoading, setBoardLoading] = useState(false);
 
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const streamRef = React.useRef<MediaStream | null>(null);
@@ -903,9 +1194,28 @@ export function PlayerDetailsModal({ player, onClose, onUpdatePlayer, session }:
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        if (typeof reader.result === 'string') {
-          setImage(reader.result);
-        }
+        if (typeof reader.result !== 'string') return;
+        const img = new Image();
+        img.onload = () => {
+          const MAX = 800;
+          let { width, height } = img;
+          if (width > MAX || height > MAX) {
+            if (width > height) {
+              height = Math.round(height * MAX / width);
+              width = MAX;
+            } else {
+              width = Math.round(width * MAX / height);
+              height = MAX;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d')!;
+          ctx.drawImage(img, 0, 0, width, height);
+          setImage(canvas.toDataURL('image/jpeg', 0.95));
+        };
+        img.src = reader.result;
       };
       reader.readAsDataURL(file);
     }
@@ -937,8 +1247,9 @@ export function PlayerDetailsModal({ player, onClose, onUpdatePlayer, session }:
             <img
               alt={player.name}
               className="w-full h-full object-cover"
-              src={image}
+              src={playerImageUrl(player.name, image)}
               referrerPolicy="no-referrer"
+              onError={(e) => { e.currentTarget.src = playerImageUrl(player.name, ''); }}
             />
           </div>
           <div className="flex-1 min-w-0">
@@ -946,7 +1257,7 @@ export function PlayerDetailsModal({ player, onClose, onUpdatePlayer, session }:
             <p className="text-xs text-on-surface-variant font-medium">
               Camisa {player.number} • {player.position}
             </p>
-            {canEdit && (
+            {canEditPhoto && (
               <div className="flex gap-2 mt-2">
                 <button
                   type="button"
@@ -1117,13 +1428,11 @@ export function PlayerDetailsModal({ player, onClose, onUpdatePlayer, session }:
               {player.pin && (
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={async () => {
                     if (confirm(`Deseja mesmo resetar o PIN de ${player.name}? Um novo PIN aleatório será gerado.`)) {
                       const newPin = String(Math.floor(100000 + Math.random() * 900000));
-                      crypto.subtle.digest('SHA-256', new TextEncoder().encode(newPin)).then(hash => {
-                        const hashedPin = Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
-                        onUpdatePlayer(player.id, { pin: hashedPin, mustChangePin: true });
-                      });
+                      const hashedPin = await hashPin(newPin);
+                      onUpdatePlayer(player.id, { pin: hashedPin, mustChangePin: true });
                       alert(`PIN de ${player.name} resetado! Novo PIN: ${newPin}. Anote e entregue ao atleta.`);
                       onClose();
                     }
@@ -1141,16 +1450,23 @@ export function PlayerDetailsModal({ player, onClose, onUpdatePlayer, session }:
                 <p className="font-bold text-on-surface">Membro da Diretoria (Acesso Admin)</p>
                 <p className="text-[10px] text-on-surface-variant/80">Permite que este atleta faça login administrativo usando o PIN dele.</p>
               </div>
-              <input
-                type="checkbox"
-                checked={!!player.isBoardMember}
-                onChange={(e) => {
-                  onUpdatePlayer(player.id, { isBoardMember: e.target.checked });
-                  alert(`${player.name} agora ${e.target.checked ? 'é' : 'não é mais'} membro da diretoria com acesso administrador.`);
+              <button
+                type="button"
+                disabled={boardLoading}
+                onClick={async () => {
+                  const newValue = !player.isBoardMember;
+                  if (!newValue && !confirm(`Tem certeza que deseja remover o acesso de diretor de ${player.name}?`)) return;
+                  setBoardLoading(true);
+                  await onUpdatePlayer(player.id, { isBoardMember: newValue, ...(newValue && { mustChangePin: true }) });
+                  setBoardLoading(false);
                   onClose();
                 }}
-                className="w-4.5 h-4.5 text-secondary border-outline-variant rounded focus:ring-secondary cursor-pointer shrink-0"
-              />
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 cursor-pointer ${boardLoading ? 'opacity-50 pointer-events-none' : ''} ${player.isBoardMember ? 'bg-amber-500' : 'bg-outline-variant/50'}`}
+              >
+                <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform ${player.isBoardMember ? 'translate-x-[22px]' : 'translate-x-[2px]'}`}>
+                  {boardLoading && <RefreshCw className="w-3 h-3 text-amber-500 animate-spin mx-auto mt-[3px]" />}
+                </span>
+              </button>
             </div>
           </div>
         )}

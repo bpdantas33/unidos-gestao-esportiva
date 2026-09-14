@@ -14,6 +14,22 @@
       ]
     },
     {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "query",
+          "key": "clear",
+          "value": "1"
+        }
+      ],
+      "headers": [
+        {
+          "key": "Clear-Site-Data",
+          "value": "\"storage\""
+        }
+      ]
+    },
+    {
       "source": "/assets/(.*)",
       "headers": [
         {
@@ -33,6 +49,10 @@
     }
   ],
   "rewrites": [
+    {
+      "source": "/sw.js",
+      "destination": "/sw.js"
+    },
     {
       "source": "/(.*)",
       "destination": "/index.html"

@@ -1,6 +1,7 @@
-import { LayoutDashboard, Calendar, Users, BarChart3, DollarSign, HelpCircle, LogOut, X, Shield, User, RefreshCw, RotateCcw } from 'lucide-react';
+import { LayoutDashboard, Calendar, Users, BarChart3, DollarSign, HelpCircle, LogOut, X, Shield, User } from 'lucide-react';
 import { UNIDOS_LOGO } from '../data/initialData';
 import { Player } from '../types';
+import { playerImageUrl } from '../lib/utils';
 
 interface SidebarProps {
   activeTab: string;
@@ -36,7 +37,7 @@ export default function Sidebar({
     : null;
 
   return (
-    <aside className={`h-screen w-64 fixed left-0 top-0 z-50 bg-primary-container flex flex-col py-8 px-4 shadow-xl border-r border-white/5 select-none transition-transform duration-300 lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+    <aside className={`h-[100dvh] w-64 fixed left-0 top-0 z-50 bg-primary-container flex flex-col py-8 px-4 shadow-xl border-r border-white/5 select-none transition-transform duration-300 lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
       {/* Brand Logo & Name */}
       <div className="flex flex-col gap-2 mb-6">
         <div className="flex items-center justify-between px-2">
@@ -71,10 +72,11 @@ export default function Sidebar({
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-lg overflow-hidden border border-tertiary/40 bg-white/10 relative">
                 <img
-                  src={loggedInPlayer.image}
+                  src={playerImageUrl(loggedInPlayer.name, loggedInPlayer.image)}
                   alt={loggedInPlayer.name}
                   className="w-full h-full object-cover"
                   referrerPolicy="no-referrer"
+                  onError={(e) => { e.currentTarget.src = playerImageUrl(loggedInPlayer.name, ''); }}
                 />
                 <div className="absolute bottom-0 right-0 w-3 h-3 bg-tertiary rounded-full border border-primary-container flex items-center justify-center">
                   <Shield className="w-1.5 h-1.5 text-white" />
@@ -104,10 +106,11 @@ export default function Sidebar({
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg overflow-hidden border border-white/15 bg-white/10">
               <img
-                src={loggedInPlayer.image}
+                src={playerImageUrl(loggedInPlayer.name, loggedInPlayer.image)}
                 alt={loggedInPlayer.name}
                 className="w-full h-full object-cover"
                 referrerPolicy="no-referrer"
+                onError={(e) => { e.currentTarget.src = playerImageUrl(loggedInPlayer.name, ''); }}
               />
             </div>
             <div className="min-w-0">
@@ -156,39 +159,13 @@ export default function Sidebar({
         })}
 
         {/* Sidebar Footer Buttons inside scrollable nav */}
-        <div className="mt-6 pt-6 border-t border-white/10 flex flex-col gap-1.5">
+        <div className="mt-auto pt-6 border-t border-white/10 flex flex-col gap-1.5">
           <button
             onClick={onSupport}
             className="w-full flex items-center gap-3 text-primary-fixed-dim px-4 py-2 hover:text-white transition-colors text-left font-medium"
           >
             <HelpCircle className="w-5 h-5" />
             <span className="text-sm">Suporte</span>
-          </button>
-
-          <button
-            onClick={() => window.location.reload()}
-            className="w-full flex items-center gap-3 text-primary-fixed-dim px-4 py-2 hover:text-white transition-colors text-left font-medium"
-          >
-            <RefreshCw className="w-5 h-5" />
-            <span className="text-sm">Recarregar App</span>
-          </button>
-
-          <button
-            onClick={async () => {
-              if ('serviceWorker' in navigator) {
-                const regs = await navigator.serviceWorker.getRegistrations();
-                for (const reg of regs) await reg.unregister();
-              }
-              if ('caches' in window) {
-                const keys = await caches.keys();
-                await Promise.all(keys.map(k => caches.delete(k)));
-              }
-              window.location.reload();
-            }}
-            className="w-full flex items-center gap-3 text-primary-fixed-dim px-4 py-2 hover:text-white transition-colors text-left font-medium"
-          >
-            <RotateCcw className="w-5 h-5" />
-            <span className="text-sm">Limpar Cache & SW</span>
           </button>
 
           <button

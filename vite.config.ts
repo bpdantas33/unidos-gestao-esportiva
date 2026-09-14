@@ -2,35 +2,16 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig} from 'vite';
-import {VitePWA} from 'vite-plugin-pwa';
 
 export default defineConfig(() => {
   return {
-    define: {
-      'import.meta.env.VITE_APP_VERSION': JSON.stringify(new Date().toISOString()),
-    },
     plugins: [
       react(),
       tailwindcss(),
-      VitePWA({
-        registerType: 'autoUpdate',
-        includeAssets: ['icon.svg'],
-        manifest: false,
-        workbox: {
-          globPatterns: ['**/*.{js,css,html,ico,svg,jpg,jpeg,png,webp}'],
-          runtimeCaching: [
-            {
-              urlPattern: /^https:\/\/firestore\.googleapis\.com\/.*/i,
-              handler: 'NetworkFirst',
-              options: {
-                cacheName: 'firebase-data',
-                expiration: { maxEntries: 50, maxAgeSeconds: 86400 },
-              },
-            },
-          ],
-        },
-      }),
     ],
+    optimizeDeps: {
+      exclude: ['firebase', '@firebase/app', '@firebase/firestore', '@firebase/auth'],
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

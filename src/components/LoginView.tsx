@@ -2,14 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Player, SquadCategory } from '../types';
 import { UNIDOS_LOGO } from '../data/initialData';
-import { hashPin } from '../lib/utils';
+import { callFunction } from '../lib/supabase';
 import { Shield, User, Lock, LogIn, ChevronDown, Key } from 'lucide-react';
 
 interface LoginViewProps {
   players: Player[];
-  adminPassword: string;
   onLoginSuccess: (session: { role: 'admin' | 'player'; playerId?: string }) => void;
-  onUpdatePlayerPin?: (id: string, newPin: string) => Promise<void>;
 }
 
 function PlayerSelect({ players, value, onChange, disabled, placeholder }: {
@@ -52,7 +50,7 @@ function PlayerSelect({ players, value, onChange, disabled, placeholder }: {
   );
 }
 
-export default function LoginView({ players, adminPassword, onLoginSuccess, onUpdatePlayerPin }: LoginViewProps) {
+export default function LoginView({ players, onLoginSuccess }: LoginViewProps) {
   const [role, setRole] = useState<'admin' | 'player'>('player');
   const [selectedPlayerId, setSelectedPlayerId] = useState('');
   const [pin, setPin] = useState('');
@@ -73,6 +71,10 @@ export default function LoginView({ players, adminPassword, onLoginSuccess, onUp
 
   // Individual URL access locking state
   const [lockedPlayerId, setLockedPlayerId] = useState<string | null>(null);
+
+  // Derived: player atual na tela de troca de PIN (p/ esconder campo PIN Atual)
+  const changePlayer = changePlayerId ? players.find(p => p.id === changePlayerId) : null;
+  const changePlayerHasPin = changePlayer ? !!changePlayer.pin : true;
 
   // 3-tap reveal for master access
   const [showMasterAccess, setShowMasterAccess] = useState(false);
@@ -118,71 +120,86 @@ export default function LoginView({ players, adminPassword, onLoginSuccess, onUp
     setError('');
     setSuccessMessage('');
 
-    if (role === 'admin') {
-      if (showMasterAccess && adminLoginType === 'master') {
-        const hashedInput = await hashPin(pin);
-        if (hashedInput === adminPassword) {
-          onLoginSuccess({ role: 'admin' });
+    try {
+      if (role === 'admin') {
+        if (showMasterAccess && adminLoginType === 'master') {
+          const result = await callFunction<{ valid: boolean; role?: string; isAdmin?: boolean }>('validate-auth', {
+            type: 'admin_master',
+            credential: pin,
+          });
+          if (result.valid) {
+            onLoginSuccess({ role: 'admin' });
+          } else {
+            setError('Senha de administrador master incorreta.');
+          }
         } else {
-          setError('Senha de administrador master incorreta.');
+          if (!selectedAdminId) {
+            setError('Selecione seu nome da lista de membros da diretoria.');
+            return;
+          }
+
+          const member = players.find(p => p.id === selectedAdminId);
+          if (!member) {
+            setError('Membro não encontrado.');
+            return;
+          }
+
+          const result = await callFunction<{ valid: boolean; role?: string; playerId?: string; isBoardMember?: boolean; mustChangePin?: boolean }>('validate-auth', {
+            type: 'pin',
+            credential: pin,
+            playerId: selectedAdminId,
+          });
+          if (result.valid) {
+            if (result.mustChangePin) {
+              setIsFirstAccess(true);
+              setIsChangingPin(true);
+              setChangePlayerId(member.id);
+              setCurrentPin(pin);
+              setNewPin('');
+              setConfirmNewPin('');
+              setSuccessMessage('Crie um PIN pessoal para continuar.');
+              return;
+            }
+            onLoginSuccess({ role: 'admin', playerId: member.id });
+          } else {
+            setError('PIN pessoal incorreto.');
+          }
         }
       } else {
-        if (!selectedAdminId) {
-          setError('Selecione seu nome da lista de membros da diretoria.');
+        if (!selectedPlayerId) {
+          setError('Selecione seu nome da lista de atletas.');
           return;
         }
 
-        const member = players.find(p => p.id === selectedAdminId);
-        if (!member) {
-          setError('Membro não encontrado.');
+        const player = players.find(p => p.id === selectedPlayerId);
+        if (!player) {
+          setError('Atleta não encontrado.');
           return;
         }
 
-        if (!member.pin) {
-          setError('Você ainda não possui um PIN cadastrado. Peça à diretoria para gerar um.');
-          return;
-        }
-
-        const hashedInput = await hashPin(pin);
-        if (hashedInput === member.pin) {
-          onLoginSuccess({ role: 'admin', playerId: member.id });
+        const result = await callFunction<{ valid: boolean; role?: string; playerId?: string; mustChangePin?: boolean }>('validate-auth', {
+          type: 'pin',
+          credential: pin,
+          playerId: selectedPlayerId,
+        });
+        if (result.valid) {
+          if (result.mustChangePin) {
+            setIsFirstAccess(true);
+            setIsChangingPin(true);
+            setChangePlayerId(player.id);
+            setCurrentPin(pin);
+            setNewPin('');
+            setConfirmNewPin('');
+            setSuccessMessage('Este é seu primeiro acesso. Crie um PIN pessoal para continuar.');
+            return;
+          }
+          onLoginSuccess({ role: 'player', playerId: player.id });
         } else {
-          setError('PIN pessoal incorreto.');
+          setError('Código PIN incorreto.');
         }
       }
-    } else {
-      if (!selectedPlayerId) {
-        setError('Selecione seu nome da lista de atletas.');
-        return;
-      }
-
-      const player = players.find(p => p.id === selectedPlayerId);
-      if (!player) {
-        setError('Atleta não encontrado.');
-        return;
-      }
-
-      if (!player.pin) {
-        setError('Você ainda não possui um PIN cadastrado. Peça à diretoria para gerar um.');
-        return;
-      }
-
-      const hashedInput = await hashPin(pin);
-      if (hashedInput === player.pin) {
-        if (player.mustChangePin) {
-          setIsFirstAccess(true);
-          setIsChangingPin(true);
-          setChangePlayerId(player.id);
-          setCurrentPin(pin);
-          setNewPin('');
-          setConfirmNewPin('');
-          setSuccessMessage('Este é seu primeiro acesso. Crie um PIN pessoal para continuar.');
-          return;
-        }
-        onLoginSuccess({ role: 'player', playerId: player.id });
-      } else {
-        setError('Código PIN incorreto.');
-      }
+    } catch (err) {
+      setError('Erro de conexão com o servidor. Tente novamente.');
     }
   };
 
@@ -202,14 +219,8 @@ export default function LoginView({ players, adminPassword, onLoginSuccess, onUp
       return;
     }
 
-    if (!player.pin) {
+    if (!player.pin && !player.isBoardMember) {
       setError('Você ainda não possui um PIN inicial. Solicite à diretoria.');
-      return;
-    }
-
-    const hashedCurrent = await hashPin(currentPin);
-    if (hashedCurrent !== player.pin) {
-      setError('O PIN atual digitado está incorreto.');
       return;
     }
 
@@ -224,22 +235,23 @@ export default function LoginView({ players, adminPassword, onLoginSuccess, onUp
     }
 
     try {
-      if (onUpdatePlayerPin) {
-        await onUpdatePlayerPin(changePlayerId, newPin);
-        if (isFirstAccess) {
-          onLoginSuccess({ role: 'player', playerId: changePlayerId });
-        } else {
-          setSuccessMessage(`PIN de ${player.name} atualizado com sucesso! Agora você já pode entrar com seu novo PIN.`);
-          setIsChangingPin(false);
-          setIsFirstAccess(false);
-          setChangePlayerId('');
-          setCurrentPin('');
-          setNewPin('');
-          setConfirmNewPin('');
-          setSelectedPlayerId(player.id);
-        }
+      await callFunction('change-pin', {
+        playerId: changePlayerId,
+        currentPin: currentPin,
+        newPin: newPin,
+      });
+      if (isFirstAccess) {
+        const isAdmin = players.find(p => p.id === changePlayerId)?.isBoardMember;
+        onLoginSuccess({ role: isAdmin ? 'admin' : 'player', playerId: changePlayerId });
       } else {
-        setError('Erro interno do sistema de PIN.');
+        setSuccessMessage(`PIN de ${player.name} atualizado com sucesso! Agora você já pode entrar com seu novo PIN.`);
+        setIsChangingPin(false);
+        setIsFirstAccess(false);
+        setChangePlayerId('');
+        setCurrentPin('');
+        setNewPin('');
+        setConfirmNewPin('');
+        setSelectedPlayerId(player.id);
       }
     } catch (err) {
       setError('Não foi possível salvar o novo PIN. Tente novamente.');
@@ -300,6 +312,7 @@ export default function LoginView({ players, adminPassword, onLoginSuccess, onUp
             <button
               onClick={() => {
                 setRole('admin');
+                setAdminLoginType(showMasterAccess ? 'master' : 'individual');
                 setError('');
                 setPin('');
               }}
@@ -367,25 +380,27 @@ export default function LoginView({ players, adminPassword, onLoginSuccess, onUp
               />
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-black text-primary uppercase tracking-wider block">
-                PIN Atual
-              </label>
-              <div className="relative">
-                <input
-                  type="password"
-                  placeholder="Digite seu PIN atual"
-                  value={currentPin}
-                  onChange={(e) => {
-                    setCurrentPin(e.target.value);
-                    setError('');
-                  }}
-                  className="w-full pl-10 pr-4 py-3 bg-surface-container-low border border-outline-variant/40 rounded-xl text-sm font-extrabold text-primary outline-none focus:ring-2 focus:ring-secondary focus:border-transparent transition-all tracking-widest placeholder:tracking-normal placeholder:font-normal"
-                  required
-                />
-                <Lock className="absolute left-3.5 top-3.5 w-4 h-4 text-on-surface-variant/70" />
+            {changePlayerHasPin && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-black text-primary uppercase tracking-wider block">
+                  PIN Atual
+                </label>
+                <div className="relative">
+                  <input
+                    type="password"
+                    placeholder="Digite seu PIN atual"
+                    value={currentPin}
+                    onChange={(e) => {
+                      setCurrentPin(e.target.value);
+                      setError('');
+                    }}
+                    className="w-full pl-10 pr-4 py-3 bg-surface-container-low border border-outline-variant/40 rounded-xl text-sm font-extrabold text-primary outline-none focus:ring-2 focus:ring-secondary focus:border-transparent transition-all tracking-widest placeholder:tracking-normal placeholder:font-normal"
+                    required
+                  />
+                  <Lock className="absolute left-3.5 top-3.5 w-4 h-4 text-on-surface-variant/70" />
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
